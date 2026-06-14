@@ -11,16 +11,28 @@ from dotenv import load_dotenv
 from backend.api import sessions, approvals
 from backend.workflows.agent_graph import pool
 
+from backend.services.worker_service import worker_loop
+
 load_dotenv()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Start background task processor
+    print("Lifespan: Starting background worker task...")
+    worker_task = asyncio.create_task(worker_loop())
+
     # Open connection pool and build checkpointer schema tables
     print("Lifespan: Initializing Postgres checkpointer pool...")
     await pool.open()
     from backend.workflows.agent_graph import init_compiled_graph
     await init_compiled_graph()
     yield
+    
+    # Cancel worker task on shutdown
+    print("Lifespan: Stopping background worker task...")
+    worker_task.cancel()
+    await asyncio.gather(worker_task, return_exceptions=True)
+    
     # Close pool on shutdown
     print("Lifespan: Closing Postgres checkpointer pool...")
     await pool.close()

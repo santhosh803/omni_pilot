@@ -11,6 +11,7 @@ from backend.agents.supervisor import get_supervisor_chain
 from backend.agents.browser import browser_node
 from backend.agents.calendar import calendar_node
 from backend.agents.research import research_node
+from backend.services.router_service import select_model_for_task
 
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL", "")
@@ -30,10 +31,20 @@ async def supervisor_node(state: AgentState) -> dict:
     print("\n--- RUNNING SUPERVISOR ---")
     messages = state.get("messages", [])
     
+    # 1. Resolve user query to select the LLM model dynamically (AI Router - Phase 3)
+    user_query = "Agent execution request"
+    for msg in messages:
+        if isinstance(msg, HumanMessage):
+            user_query = msg.content
+            break
+            
+    model_name = select_model_for_task(user_query)
+    
     try:
-        chain = get_supervisor_chain()
+        # Pass chosen model to the chain generator
+        chain = get_supervisor_chain(model_name)
         response = await chain.ainvoke({"messages": messages})
-        print(f"Supervisor Decision (LLM): next={response.next}, instructions={response.instructions}")
+        print(f"Supervisor Decision (LLM - {model_name}): next={response.next}, instructions={response.instructions}")
         return {
             "next": response.next,
             "messages": [AIMessage(content=response.instructions, name="supervisor")]
