@@ -1,26 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from langchain_core.messages import HumanMessage
-from typing import List
+from sqlalchemy.future import select
 
 from backend.database.config import get_db
 from backend.database import crud
+from backend.database.models import AgentRun
 from backend.schemas import agent as schemas
-from backend.workflows.agent_graph import compiled_graph
+from backend.services.agent_service import execute_or_resume_graph
 
 router = APIRouter(prefix="/sessions", tags=["Sessions"])
-
-def serialize_messages(messages):
-    serialized = []
-    for msg in messages:
-        # Check standard properties of BaseMessage
-        role = "human" if isinstance(msg, HumanMessage) else "ai"
-        serialized.append({
-            "role": role,
-            "content": msg.content,
-            "name": getattr(msg, "name", None)
-        })
-    return serialized
 
 @router.post("/", response_model=schemas.SessionResponse)
 async def create_new_session(
@@ -58,33 +46,21 @@ async def trigger_agent_run(
     run = await crud.create_agent_run(db, session_id=session_id, agent_type="supervisor")
     
     try:
-        # Execute the LangGraph workflow
-        initial_state = {
-            "messages": [HumanMessage(content=run_data.query)],
-            "next": "supervisor"
-        }
-        
-        # Run graph to completion
-        final_state = await compiled_graph.ainvoke(initial_state)
-        
-        # Serialize the message history to save in DB state
-        serialized_messages = serialize_messages(final_state.get("messages", []))
-        
-        state_data = {
-            "messages": serialized_messages,
-            "next": final_state.get("next")
-        }
-        
-        # Update the run status in database
-        updated_run = await crud.update_agent_run_status(
-            db, 
-            run_id=run.id, 
-            status="completed", 
-            state=state_data
+        # Run graph
+        await execute_or_resume_graph(
+            session_id=session_id,
+            run_id=run.id,
+            db=db,
+            user_query=run_data.query
         )
-        return updated_run
+        
+        # Retrieve updated agent run entry from database
+        result = await db.execute(select(AgentRun).filter(AgentRun.id == run.id))
+        return result.scalars().first()
         
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         # Mark agent run as failed in database
         await crud.update_agent_run_status(
             db, 
