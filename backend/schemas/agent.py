@@ -8,18 +8,6 @@ class MessageSchema(BaseModel):
     content: str
     name: Optional[str] = None
 
-# --- Session Schemas ---
-class SessionCreate(BaseModel):
-    user_id: Optional[int] = None
-
-class SessionResponse(BaseModel):
-    id: int
-    user_id: Optional[int]
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
-
 # --- Agent Run Schemas ---
 class AgentRunCreate(BaseModel):
     query: str
@@ -32,6 +20,19 @@ class AgentRunResponse(BaseModel):
     state: Optional[Dict[str, Any]] = None
     created_at: datetime
     completed_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+# --- Session Schemas ---
+class SessionCreate(BaseModel):
+    user_id: Optional[int] = None
+
+class SessionResponse(BaseModel):
+    id: int
+    user_id: Optional[int]
+    created_at: datetime
+    runs: List[AgentRunResponse] = []
 
     class Config:
         from_attributes = True

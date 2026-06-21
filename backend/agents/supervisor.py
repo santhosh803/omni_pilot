@@ -14,15 +14,28 @@ class RouteResponse(BaseModel):
 
 def get_supervisor_chain(model_name: str = "llama-3.3-70b-versatile"):
     """Creates the supervisor routing chain, configured with a dynamic model chosen by the AI Router."""
-    api_key = os.getenv("GROQ_API_KEY")
-    if not api_key or api_key == "your_groq_api_key_here":
-        raise ValueError("GROQ_API_KEY not configured in .env file.")
-        
-    llm = ChatGroq(
-        model=model_name,
-        temperature=0,
-        api_key=api_key
-    )
+    cerebras_key = os.getenv("CEREBRAS_API_KEY")
+    if cerebras_key and cerebras_key != "your_cerebras_api_key_here":
+        from langchain_openai import ChatOpenAI
+        # Map model names to Cerebras equivalents
+        cerebras_model = "gpt-oss-120b"
+        print(f"Supervisor: Routing to Cerebras using model '{cerebras_model}'...")
+        llm = ChatOpenAI(
+            model=cerebras_model,
+            temperature=0,
+            openai_api_key=cerebras_key,
+            openai_api_base="https://api.cerebras.ai/v1"
+        )
+    else:
+        api_key = os.getenv("GROQ_API_KEY")
+        if not api_key or api_key == "your_groq_api_key_here":
+            raise ValueError("GROQ_API_KEY not configured in .env file.")
+            
+        llm = ChatGroq(
+            model=model_name,
+            temperature=0,
+            api_key=api_key
+        )
     
     structured_llm = llm.with_structured_output(RouteResponse)
     
@@ -35,6 +48,9 @@ def get_supervisor_chain(model_name: str = "llama-3.3-70b-versatile"):
          "3. 'research': For performing deep market topics or briefing prep.\n\n"
          "Analyze the conversation history. Decide if you need to route to 'browser', 'calendar', 'research', "
          "or if the task is completely finished, route to 'finish'.\n"
+         "Note: If the 'research' agent has already executed and generated the briefing, the research task is completed. "
+         "Do not route back to 'research' to ask for the briefing text, as it is automatically shown to the user on the dashboard. "
+         "Instead, route to 'finish' (or 'calendar' if the user requested scheduling as a next step).\n"
          "Provide clear, concise instructions for the next agent."),
         MessagesPlaceholder(variable_name="messages"),
     ])

@@ -26,6 +26,16 @@ async def get_session_details(
     session = await crud.get_session(db, session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
+        
+    # Fetch runs associated with this session
+    result = await db.execute(
+        select(AgentRun)
+        .filter(AgentRun.session_id == session_id)
+        .order_by(AgentRun.created_at.asc())
+    )
+    runs = result.scalars().all()
+    session.runs = runs
+    
     return session
 
 @router.post("/{session_id}/runs", response_model=schemas.AgentRunResponse)

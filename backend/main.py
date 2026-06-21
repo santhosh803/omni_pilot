@@ -58,8 +58,15 @@ app = FastAPI(
 app.include_router(sessions.router, prefix="/api")
 app.include_router(approvals.router, prefix="/api")
 
+from fastapi.responses import HTMLResponse
+import os
+
 @app.get("/")
 async def root():
+    html_path = os.path.join(os.path.dirname(__file__), "static", "index.html")
+    if os.path.exists(html_path):
+        with open(html_path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
     return {"message": "Welcome to OmniPilot AI API"}
 
 @app.get("/health")

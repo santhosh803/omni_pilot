@@ -51,16 +51,26 @@ def run_research_crew(query: str) -> dict:
     # Check if keys are missing or placeholders
     api_key = os.getenv("GROQ_API_KEY")
     tavily_key = os.getenv("TAVILY_API_KEY")
-    if (not api_key or api_key == "your_groq_api_key_here" or 
-        not tavily_key or tavily_key == "your_tavily_api_key_here"):
-        print("WARNING: GROQ_API_KEY or TAVILY_API_KEY not configured. Returning mock research results for testing.")
+    cerebras_key = os.getenv("CEREBRAS_API_KEY")
+    
+    has_groq = api_key and api_key != "your_groq_api_key_here"
+    has_cerebras = cerebras_key and cerebras_key != "your_cerebras_api_key_here"
+    has_tavily = tavily_key and tavily_key != "your_tavily_api_key_here"
+    
+    if (not (has_groq or has_cerebras) or not has_tavily):
+        print("WARNING: Neither GROQ_API_KEY nor CEREBRAS_API_KEY is configured (or TAVILY_API_KEY is missing). Returning mock research results for testing.")
         return get_mock_results(query)
         
     try:
-        # Ensure all OpenAI-based client wrappers inside CrewAI redirect their calls to Groq
-        os.environ["OPENAI_API_KEY"] = api_key
-        os.environ["OPENAI_API_BASE"] = "https://api.groq.com/openai/v1"
-        os.environ["OPENAI_BASE_URL"] = "https://api.groq.com/openai/v1"
+        # Ensure all OpenAI-based client wrappers inside CrewAI redirect their calls correctly
+        if has_cerebras:
+            os.environ["OPENAI_API_KEY"] = cerebras_key
+            os.environ["OPENAI_API_BASE"] = "https://api.cerebras.ai/v1"
+            os.environ["OPENAI_BASE_URL"] = "https://api.cerebras.ai/v1"
+        else:
+            os.environ["OPENAI_API_KEY"] = api_key
+            os.environ["OPENAI_API_BASE"] = "https://api.groq.com/openai/v1"
+            os.environ["OPENAI_BASE_URL"] = "https://api.groq.com/openai/v1"
         
         # 1. Initialize LLM
         llm = get_llm()
