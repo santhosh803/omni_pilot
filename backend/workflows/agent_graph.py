@@ -26,6 +26,9 @@ compiled_graph = None
 class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
     next: str
+    research_output: str
+    research_sources: list[str]
+    research_confidence: float
 
 async def supervisor_node(state: AgentState) -> dict:
     print("\n--- RUNNING SUPERVISOR ---")

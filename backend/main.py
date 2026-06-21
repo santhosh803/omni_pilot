@@ -23,9 +23,20 @@ async def lifespan(app: FastAPI):
 
     # Open connection pool and build checkpointer schema tables
     print("Lifespan: Initializing Postgres checkpointer pool...")
-    await pool.open()
-    from backend.workflows.agent_graph import init_compiled_graph
-    await init_compiled_graph()
+    import backend.workflows.agent_graph as agent_graph
+    if agent_graph.pool._closed:
+        from psycopg_pool import AsyncConnectionPool
+        print("Lifespan: Recreating closed Postgres connection pool...")
+        agent_graph.pool = AsyncConnectionPool(
+            conninfo=agent_graph.conn_info, 
+            max_size=10, 
+            kwargs={"autocommit": True}, 
+            open=False
+        )
+        agent_graph.compiled_graph = None
+        
+    await agent_graph.pool.open()
+    await agent_graph.init_compiled_graph()
     yield
     
     # Cancel worker task on shutdown
@@ -35,7 +46,7 @@ async def lifespan(app: FastAPI):
     
     # Close pool on shutdown
     print("Lifespan: Closing Postgres checkpointer pool...")
-    await pool.close()
+    await agent_graph.pool.close()
 
 app = FastAPI(
     title="OmniPilot AI",

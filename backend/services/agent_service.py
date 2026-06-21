@@ -47,6 +47,10 @@ async def execute_or_resume_graph(
             "messages": serialized_messages,
             "next": next_nodes[0] if next_nodes else None
         }
+        if state_snapshot.values:
+            for key in ["research_output", "research_sources", "research_confidence"]:
+                if key in state_snapshot.values:
+                    state_data[key] = state_snapshot.values[key]
         
         extra_details = {
             "session_id": session_id,

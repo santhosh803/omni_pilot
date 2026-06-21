@@ -105,3 +105,73 @@ def test_e2e_hitl_checkpoints():
             json={"approve": True}
         )
         assert response.status_code == 200
+
+
+def test_research_crew_quality():
+    print("Evaluating Research Crew Quality...")
+    
+    with TestClient(app) as client:
+        # Create a session
+        response = client.post("/api/sessions/", json={})
+        assert response.status_code == 200
+        session_id = response.json()["id"]
+        
+        # Trigger run (should interrupt before research node)
+        response = client.post(
+            f"/api/sessions/{session_id}/runs", 
+            json={"query": "Prepare a deep research report on AI agent trends."}
+        )
+        assert response.status_code == 200
+        run = response.json()
+        assert run["status"] == "interrupted"
+        
+        # Fetch pending approvals
+        response = client.get("/api/approvals/pending")
+        assert response.status_code == 200
+        approvals = response.json()
+        
+        my_approval = None
+        for appr in approvals:
+            if appr["agent_run_id"] == run["id"]:
+                my_approval = appr
+                break
+                
+        assert my_approval is not None
+        assert my_approval["action_type"] == "execute_research"
+        
+        # Approve task execution -> resumes graph and runs the research node
+        response = client.post(
+            f"/api/approvals/{my_approval['id']}/respond", 
+            json={"approve": True}
+        )
+        assert response.status_code == 200
+
+        # Query the database to get the updated agent run
+        from backend.database.config import AsyncSessionLocal
+        from backend.database.models import AgentRun
+        from sqlalchemy.future import select
+        import asyncio
+
+        async def get_updated_run():
+            async with AsyncSessionLocal() as db:
+                stmt = select(AgentRun).where(AgentRun.id == run["id"])
+                res = await db.execute(stmt)
+                return res.scalars().first()
+
+        updated_run = asyncio.run(get_updated_run())
+        assert updated_run.status == "completed"
+        state = updated_run.state
+        
+        # Asserts
+        assert "research_output" in state
+        assert state["research_output"] is not None
+        assert len(state["research_output"]) > 0
+        
+        assert "research_sources" in state
+        assert isinstance(state["research_sources"], list)
+        assert len(state["research_sources"]) >= 2
+        
+        assert "research_confidence" in state
+        confidence = state["research_confidence"]
+        assert isinstance(confidence, (int, float))
+        assert 0.0 <= confidence <= 1.0

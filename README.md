@@ -8,6 +8,7 @@ OmniPilot AI is a production-grade multi-agent executive assistant system built 
 ## 🚀 Key Features
 
 * **Multi-Agent Orchestration**: Powered by a central supervisor graph built on **LangGraph** to coordinate workers.
+* **CrewAI Research Sub-crew (New)**: Replaces the basic single research node with a 4-agent sequential CrewAI crew (Planner, Crawler, Analyst, Writer) using Groq Llama 70B and Tavily Search to compile deep, multi-source briefings.
 * **AI Router (Phase 3)**: Dynamically selects the most cost-effective Groq model (`Llama 70B` for orchestration/research, `Qwen 32B` for web scraping, and `Llama 8B` for simple text processing).
 * **Human-in-the-Loop (HITL)**: Workflow pauses at checkpointers using an async Postgres checkpointer (`AsyncPostgresSaver`) before any tool execution (web searches or scheduling), waiting for user approval.
 * **Local Semantic Memory (Phase 2)**: Integrates **pgvector** and a local **Ollama** embeddings engine (`nomic-embed-text`) to index user preferences and generated briefings.
@@ -20,11 +21,11 @@ OmniPilot AI is a production-grade multi-agent executive assistant system built 
 ## 🛠️ Tech Stack
 
 * **Backend**: FastAPI, Uvicorn, Pydantic (V2)
-* **Agent Engine**: LangGraph, LangChain, LangChain-Groq
+* **Agent Engine**: LangGraph, LangChain, LangChain-Groq, CrewAI, CrewAI-Tools
 * **Database**: PostgreSQL (Dockerized `ankane/pgvector` image)
 * **ORM & Migrations**: SQLAlchemy (Async Engine + asyncpg), Alembic
 * **Embeddings**: Local Ollama (`nomic-embed-text` v1.5)
-* **Automation**: Playwright (for web search operations)
+* **Automation**: Playwright (for web search operations), Tavily Search API
 
 ---
 
@@ -53,6 +54,7 @@ omni_pilot/
 │   ├── main.py               # FastAPI application bootstrapper & lifespans
 │   ├── api/                  # API endpoints (sessions, approvals)
 │   ├── agents/               # Supervisor, Browser, Calendar, and Research nodes
+│   │   └── research_crew/    # [NEW] CrewAI 4-agent sequential research crew package (Planner, Crawler, Analyst, Writer)
 │   ├── services/             # Playwright browser search, Cal.com calendar simulation,
 │   │                         # AI Router, Observability trackers, and Async background workers
 │   ├── database/             # SQLAlchemy configurations & tables
@@ -82,6 +84,7 @@ omni_pilot/
 Create a `.env` file in the root directory:
 ```env
 GROQ_API_KEY=your_groq_api_key_here
+TAVILY_API_KEY=your_tavily_api_key_here
 DATABASE_URL=postgresql+asyncpg://omnipilot:omnipilot_pass@localhost:5433/omnipilot_db
 ```
 
