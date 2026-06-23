@@ -77,10 +77,10 @@ def test_e2e_hitl_checkpoints():
         assert response.status_code == 200
         session_id = response.json()["id"]
         
-        # Trigger run (should interrupt at browser node)
+        # Trigger run (should interrupt at calendar node)
         response = client.post(
             f"/api/sessions/{session_id}/runs", 
-            json={"query": "Search for AI news."}
+            json={"query": "Schedule a meeting with the client."}
         )
         assert response.status_code == 200
         run = response.json()
@@ -98,6 +98,7 @@ def test_e2e_hitl_checkpoints():
                 break
                 
         assert my_approval is not None
+        assert my_approval["action_type"] == "execute_calendar"
         
         # Approve task execution -> resumes graph
         response = client.post(
@@ -116,51 +117,15 @@ def test_research_crew_quality():
         assert response.status_code == 200
         session_id = response.json()["id"]
         
-        # Trigger run (should interrupt before research node)
+        # Trigger run (should run to completion without interrupting)
         response = client.post(
             f"/api/sessions/{session_id}/runs", 
             json={"query": "Prepare a deep research report on AI agent trends."}
         )
         assert response.status_code == 200
         run = response.json()
-        assert run["status"] == "interrupted"
-        
-        # Fetch pending approvals
-        response = client.get("/api/approvals/pending")
-        assert response.status_code == 200
-        approvals = response.json()
-        
-        my_approval = None
-        for appr in approvals:
-            if appr["agent_run_id"] == run["id"]:
-                my_approval = appr
-                break
-                
-        assert my_approval is not None
-        assert my_approval["action_type"] == "execute_research"
-        
-        # Approve task execution -> resumes graph and runs the research node
-        response = client.post(
-            f"/api/approvals/{my_approval['id']}/respond", 
-            json={"approve": True}
-        )
-        assert response.status_code == 200
-
-        # Query the database to get the updated agent run
-        from backend.database.config import AsyncSessionLocal
-        from backend.database.models import AgentRun
-        from sqlalchemy.future import select
-        import asyncio
-
-        async def get_updated_run():
-            async with AsyncSessionLocal() as db:
-                stmt = select(AgentRun).where(AgentRun.id == run["id"])
-                res = await db.execute(stmt)
-                return res.scalars().first()
-
-        updated_run = asyncio.run(get_updated_run())
-        assert updated_run.status == "completed"
-        state = updated_run.state
+        assert run["status"] == "completed"
+        state = run["state"]
         
         # Asserts
         assert "research_output" in state
@@ -225,3 +190,26 @@ def test_delete_session():
         # Verify it is no longer retrievable
         res = client.get(f"/api/sessions/{session_id}")
         assert res.status_code == 404
+
+
+def test_calendar_read_no_interrupt():
+    print("Evaluating Calendar Read (No Interrupts)...")
+    with TestClient(app) as client:
+        # Create a session
+        response = client.post("/api/sessions/", json={})
+        assert response.status_code == 200
+        session_id = response.json()["id"]
+        
+        # Trigger read-only calendar run (should run to completion without interrupting)
+        response = client.post(
+            f"/api/sessions/{session_id}/runs", 
+            json={"query": "What are my scheduled meetings?"}
+        )
+        assert response.status_code == 200
+        run = response.json()
+        assert run["status"] == "completed"
+        
+        messages = run["state"].get("messages", [])
+        # Ensure calendar agent responded
+        calendar_responded = any(msg.get("name") == "calendar" for msg in messages)
+        assert calendar_responded is True

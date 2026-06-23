@@ -9,7 +9,7 @@ from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
 from backend.agents.supervisor import get_supervisor_chain
 from backend.agents.browser import browser_node
-from backend.agents.calendar import calendar_node
+from backend.agents.calendar import calendar_node, calendar_read_node
 from backend.agents.research import research_node
 from backend.services.router_service import select_model_for_task
 
@@ -114,6 +114,26 @@ def route_next(state: AgentState):
     if next_node == "browser":
         return "browser"
     elif next_node == "calendar":
+        messages = state.get("messages", [])
+        is_read = False
+        
+        # Check supervisor instructions (last message)
+        if messages:
+            last_msg = messages[-1]
+            content = last_msg.content.lower()
+            if any(kw in content for kw in ["list", "retrieve", "get", "show", "view", "check", "read", "current", "upcoming"]):
+                is_read = True
+                
+        # Check original human message
+        for msg in reversed(messages):
+            if isinstance(msg, HumanMessage):
+                prompt = msg.content.lower()
+                if any(kw in prompt for kw in ["list", "retrieve", "get", "show", "view", "check", "read", "current", "upcoming"]):
+                    is_read = True
+                break
+                
+        if is_read:
+            return "calendar_read"
         return "calendar"
     elif next_node == "research":
         return "research"
@@ -127,11 +147,13 @@ workflow = StateGraph(AgentState)
 workflow.add_node("supervisor", supervisor_node)
 workflow.add_node("browser", browser_node)
 workflow.add_node("calendar", calendar_node)
+workflow.add_node("calendar_read", calendar_read_node)
 workflow.add_node("research", research_node)
 
 # Connect edges
 workflow.add_edge("browser", "supervisor")
 workflow.add_edge("calendar", "supervisor")
+workflow.add_edge("calendar_read", "supervisor")
 workflow.add_edge("research", "supervisor")
 
 # Conditional routing from supervisor
@@ -141,6 +163,7 @@ workflow.add_conditional_edges(
     {
         "browser": "browser",
         "calendar": "calendar",
+        "calendar_read": "calendar_read",
         "research": "research",
         "__end__": END
     }
@@ -157,6 +180,6 @@ async def init_compiled_graph():
         await checkpointer.setup()
         compiled_graph = workflow.compile(
             checkpointer=checkpointer,
-            interrupt_before=["browser", "calendar", "research"]
+            interrupt_before=["calendar"]
         )
     return compiled_graph

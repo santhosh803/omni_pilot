@@ -424,7 +424,7 @@ export default function App() {
                       }}
                       title="Delete Workspace"
                     >
-                      <Trash2 size={13} />
+                      <Trash2 size={16} />
                     </span>
                     <ChevronRight size={14} className="chevron" />
                   </div>
