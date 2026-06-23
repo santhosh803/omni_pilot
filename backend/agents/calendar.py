@@ -1,6 +1,30 @@
 from langchain_core.messages import AIMessage, HumanMessage
 from datetime import datetime, timedelta
-from backend.services.calendar_service import create_event
+from backend.services.calendar_service import create_event, get_events
+
+async def calendar_read_node(state) -> dict:
+    print("--- RUNNING CALENDAR READ AGENT ---")
+    try:
+        events = await get_events()
+        if not events:
+            content = "[Calendar Agent] Checked calendar. There are no scheduled events."
+        else:
+            lines = ["[Calendar Agent] Current scheduled events:"]
+            for e in events:
+                lines.append(
+                    f"  - Title: {e['title']}\n"
+                    f"    Start: {e['start_time'].strftime('%Y-%m-%d %I:%M %p')}\n"
+                    f"    End: {e['end_time'].strftime('%Y-%m-%d %I:%M %p')}"
+                )
+            content = "\n".join(lines)
+    except Exception as e:
+        content = f"[Calendar Agent] Failed to retrieve events: {str(e)}"
+        
+    return {
+        "messages": [
+            AIMessage(content=content, name="calendar")
+        ]
+    }
 
 async def calendar_node(state) -> dict:
     print("--- RUNNING CALENDAR AGENT ---")
