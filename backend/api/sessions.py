@@ -1,14 +1,38 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from typing import List
 
 from backend.database.config import get_db
 from backend.database import crud
-from backend.database.models import AgentRun
+from backend.database.models import AgentRun, Session
 from backend.schemas import agent as schemas
 from backend.services.agent_service import execute_or_resume_graph
 
 router = APIRouter(prefix="/sessions", tags=["Sessions"])
+
+@router.get("/", response_model=List[schemas.SessionResponse])
+async def list_recent_sessions(
+    db: AsyncSession = Depends(get_db)
+):
+    # Fetch 20 most recent sessions
+    result = await db.execute(
+        select(Session)
+        .order_by(Session.created_at.desc())
+        .limit(20)
+    )
+    sessions = result.scalars().all()
+    
+    # Attach runs for each session
+    for s in sessions:
+        runs_result = await db.execute(
+            select(AgentRun)
+            .filter(AgentRun.session_id == s.id)
+            .order_by(AgentRun.created_at.asc())
+        )
+        s.runs = runs_result.scalars().all()
+        
+    return sessions
 
 @router.post("/", response_model=schemas.SessionResponse)
 async def create_new_session(
@@ -37,6 +61,16 @@ async def get_session_details(
     session.runs = runs
     
     return session
+
+@router.delete("/{session_id}")
+async def delete_existing_session(
+    session_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    success = await crud.delete_session(db, session_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {"success": True}
 
 @router.post("/{session_id}/runs", response_model=schemas.AgentRunResponse)
 async def trigger_agent_run(

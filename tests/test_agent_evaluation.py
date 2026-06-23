@@ -175,3 +175,53 @@ def test_research_crew_quality():
         confidence = state["research_confidence"]
         assert isinstance(confidence, (int, float))
         assert 0.0 <= confidence <= 1.0
+
+
+def test_list_sessions():
+    print("Evaluating GET /api/sessions/ endpoint...")
+    with TestClient(app) as client:
+        # Create a few sessions
+        created_ids = []
+        for _ in range(3):
+            res = client.post("/api/sessions/", json={})
+            assert res.status_code == 200
+            created_ids.append(res.json()["id"])
+            
+        # List sessions
+        res = client.get("/api/sessions/")
+        assert res.status_code == 200
+        sessions = res.json()
+        assert len(sessions) >= 3
+        
+        # Verify that recent sessions contain our newly created sessions
+        session_ids = [s["id"] for s in sessions]
+        for cid in created_ids:
+            assert cid in session_ids
+            
+        # Verify newest-first ordering (recent sessions first in the list)
+        idx_0 = session_ids.index(created_ids[0])
+        idx_1 = session_ids.index(created_ids[1])
+        idx_2 = session_ids.index(created_ids[2])
+        assert idx_2 < idx_1 < idx_0
+
+
+def test_delete_session():
+    print("Evaluating DELETE /api/sessions/{session_id} endpoint...")
+    with TestClient(app) as client:
+        # Create a session
+        res = client.post("/api/sessions/", json={})
+        assert res.status_code == 200
+        session_id = res.json()["id"]
+        
+        # Verify it can be retrieved
+        res = client.get(f"/api/sessions/{session_id}")
+        assert res.status_code == 200
+        
+        # Delete the session
+        res = client.delete(f"/api/sessions/{session_id}")
+        assert res.status_code == 200
+        assert res.json() == {"success": True}
+        
+        # Verify it is no longer retrievable
+        res = client.get(f"/api/sessions/{session_id}")
+        assert res.status_code == 404
