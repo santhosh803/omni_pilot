@@ -1,0 +1,9 @@
+/* Global reset to prevent Vite boilerplate from conflicting with the dashboard layout */
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+}

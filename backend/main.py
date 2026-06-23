@@ -59,14 +59,36 @@ app.include_router(sessions.router, prefix="/api")
 app.include_router(approvals.router, prefix="/api")
 
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 import os
+
+# Resolve frontend dist path
+frontend_dist_path = os.path.abspath(
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "dist")
+)
+
+# Mount Vite assets directory if it exists
+if os.path.exists(frontend_dist_path):
+    assets_path = os.path.join(frontend_dist_path, "assets")
+    if os.path.exists(assets_path):
+        print(f"Server: Mounting static assets folder from {assets_path}...")
+        app.mount("/assets", StaticFiles(directory=assets_path), name="assets")
 
 @app.get("/")
 async def root():
+    # Try to serve Vite's production index.html first
+    if os.path.exists(frontend_dist_path):
+        vite_index = os.path.join(frontend_dist_path, "index.html")
+        if os.path.exists(vite_index):
+            with open(vite_index, "r", encoding="utf-8") as f:
+                return HTMLResponse(content=f.read())
+                
+    # Fallback to local static/index.html if exists
     html_path = os.path.join(os.path.dirname(__file__), "static", "index.html")
     if os.path.exists(html_path):
         with open(html_path, "r", encoding="utf-8") as f:
             return HTMLResponse(content=f.read())
+            
     return {"message": "Welcome to OmniPilot AI API"}
 
 @app.get("/health")

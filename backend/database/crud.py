@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import update
 from datetime import datetime
-from backend.database.models import User, Session, AgentRun, Task, Approval
+from backend.database.models import User, Session, AgentRun, Task, Approval, MeetingHistory
 
 # --- User Helpers ---
 async def get_or_create_default_user(db: AsyncSession) -> User:
@@ -96,3 +96,38 @@ async def respond_to_approval(db: AsyncSession, approval_id: int, approve: bool)
 async def get_pending_approvals(db: AsyncSession) -> list[Approval]:
     result = await db.execute(select(Approval).filter(Approval.status == "pending"))
     return result.scalars().all()
+
+async def delete_session(db: AsyncSession, session_id: int) -> bool:
+    from sqlalchemy import delete
+    # 1. Fetch the session
+    session = await get_session(db, session_id)
+    if not session:
+        return False
+    
+    # 2. Fetch all runs for the session to delete approvals
+    run_ids_result = await db.execute(
+        select(AgentRun.id).filter(AgentRun.session_id == session_id)
+    )
+    run_ids = run_ids_result.scalars().all()
+    if run_ids:
+        await db.execute(
+            delete(Approval).filter(Approval.agent_run_id.in_(run_ids))
+        )
+        await db.execute(
+            delete(AgentRun).filter(AgentRun.id.in_(run_ids))
+        )
+        
+    # 3. Delete tasks
+    await db.execute(
+        delete(Task).filter(Task.session_id == session_id)
+    )
+    
+    # 4. Delete meeting history
+    await db.execute(
+        delete(MeetingHistory).filter(MeetingHistory.session_id == session_id)
+    )
+    
+    # 5. Delete the session itself
+    await db.delete(session)
+    await db.commit()
+    return True
