@@ -1,0 +1,104 @@
+[project]
+name = "omnipilot"
+version = "0.1.0"
+description = "Autonomous Multi-Agent Executive Assistant built with FastAPI, LangGraph, and pgvector."
+readme = "README.md"
+requires-python = ">=3.10,<3.14"
+license = { text = "MIT" }
+
+dependencies = [
+    "fastapi>=0.137",
+    "uvicorn[standard]>=0.49",
+    "pydantic>=2.12",
+    "python-dotenv>=1.2",
+    "sqlalchemy[asyncio]>=2.0.48",
+    "asyncpg>=0.31",
+    "psycopg[binary]>=3.3",
+    "psycopg-pool>=3.3",
+    "pgvector>=0.4.2",
+    "langchain>=1.2.12",
+    "langchain-core>=1.4",
+    "langchain-openai>=1.1.11",
+    "langchain-groq>=1.1.3",
+    "langgraph>=1.2.6",
+    "langgraph-checkpoint>=4.1",
+    "langgraph-checkpoint-postgres>=3.1",
+    "crewai>=1.6.1",
+    "crewai-tools>=1.6.1",
+    "tavily-python>=0.7.26",
+    "httpx>=0.28",
+    "playwright>=1.60",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.9",
+    "mypy>=1.13",
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["backend"]
+
+[tool.uv]
+package = true
+
+# ---------------------------------------------------------------------------
+# Ruff: linter + formatter
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = ["frontend", "migrations/versions", ".venv"]
+
+[tool.ruff.lint]
+# Start with a focused rule set; expand as the codebase matures.
+select = ["E", "F", "W", "I", "UP", "B", "C4"]
+ignore = [
+    "E501",   # line length handled by formatter
+    "B008",   # function calls in defaults (FastAPI Depends pattern)
+    "UP040",  # `type` alias PEP 695 syntax (keep runtime-compatible)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["backend"]
+
+[tool.ruff.lint.per-file-ignores]
+# main.py deliberately places StaticFiles import after route registration so the
+# catch-all SPA mount is registered last and does not shadow explicit routes.
+"backend/main.py" = ["E402"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+# ---------------------------------------------------------------------------
+# Mypy: gradual typing (lenient baseline, ratchet up in Phase 3)
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.10"
+namespace_packages = true
+ignore_missing_imports = true
+implicit_optional = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unreachable = true
+check_untyped_defs = false
+disallow_untyped_defs = false
+exclude = ["frontend/", "migrations/versions/", ".venv/"]
+
+# ---------------------------------------------------------------------------
+# Pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+minversion = "8.3"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
