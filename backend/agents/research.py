@@ -19,12 +19,11 @@ async def bg_save_research_briefing(session_id: int, title: str, summary: str, b
         )
 
 
-async def store_in_memory(briefing: str, metadata: dict):
+async def store_in_memory(briefing: str, metadata: dict, session_id: int):
     """Helper to store briefing in pgvector memory using the existing background task worker pattern."""
     query = metadata.get("query", "AI Agent Trends 2026")
     sources_str = ", ".join(metadata.get("sources", []))
     confidence = metadata.get("confidence", 1.0)
-    session_id = 1  # Simulated session context ID
 
     enqueue_background_job(
         bg_save_research_briefing,
@@ -38,6 +37,7 @@ async def store_in_memory(briefing: str, metadata: dict):
 async def research_node(state) -> dict:
     print("--- RUNNING RESEARCH AGENT (CREWAI) ---")
     messages = state.get("messages", [])
+    session_id = state.get("session_id", 0)
 
     # 1. Determine target topic
     query = "AI Agent Trends 2026"
@@ -53,6 +53,7 @@ async def research_node(state) -> dict:
     await store_in_memory(
         result["briefing"],
         metadata={"sources": result["sources"], "confidence": result["confidence"], "query": query},
+        session_id=session_id,
     )
 
     # 4. Return updated state using the existing state schema + new fields

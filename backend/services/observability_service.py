@@ -47,10 +47,16 @@ class ObservabilityTracker:
         return 0.0
 
     def estimate_tokens(self, text: str) -> int:
-        """Simple rule-of-thumb: ~4 characters per token."""
+        """Estimate token count using tiktoken (cl100k_base) with a char-heuristic fallback."""
         if not text:
             return 0
-        return max(1, len(text) // 4)
+        try:
+            import tiktoken
+
+            enc = tiktoken.get_encoding("cl100k_base")
+            return len(enc.encode(text))
+        except Exception:
+            return max(1, len(text) // 4)
 
     async def log_and_save(
         self,

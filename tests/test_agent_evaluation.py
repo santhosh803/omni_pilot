@@ -45,10 +45,10 @@ def test_observability_tokens_eval():
     print("Evaluating Observability token estimator...")
     tracker = ObservabilityTracker(action_name="test_tokens")
 
-    # Simple token assertions (~4 characters per token)
+    # Token assertions (tiktoken cl100k_base encoding)
     assert tracker.estimate_tokens("Hello World") == 2
     assert tracker.estimate_tokens("") == 0
-    assert tracker.estimate_tokens("A" * 40) == 10
+    assert tracker.estimate_tokens("A" * 40) == 5
 
 
 # --- 3. Background Worker Queue Evaluation Tests (Phase 3) ---

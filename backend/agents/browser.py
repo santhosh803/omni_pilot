@@ -8,11 +8,20 @@ async def browser_node(state) -> dict:
     messages = state.get("messages", [])
 
     # Extract the original user query to search
-    query = "AI agents portfolio project"
+    query = ""
     for msg in reversed(messages):
         if isinstance(msg, HumanMessage):
             query = msg.content
             break
+    # Fall back to the last message content (e.g. supervisor instructions) if no human message
+    if not query and messages:
+        query = messages[-1].content
+    if not query:
+        return {
+            "messages": [
+                AIMessage(content="[Browser Agent] No search query was provided.", name="browser")
+            ]
+        }
 
     search_results = await search_web(query)
 
