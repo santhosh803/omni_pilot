@@ -1,6 +1,7 @@
-import os
 import asyncio
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+import os
+
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import declarative_base
 
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -8,8 +9,10 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 # Provide a fallback for alembic without env loaded if needed, or rely on .env loading in env.py
 if not DATABASE_URL:
     from dotenv import load_dotenv
+
     load_dotenv()
     DATABASE_URL = os.getenv("DATABASE_URL")
+
 
 class DynamicAsyncSessionMaker:
     def __init__(self):
@@ -21,7 +24,7 @@ class DynamicAsyncSessionMaker:
             current_loop = asyncio.get_running_loop()
         except RuntimeError:
             current_loop = None
-        
+
         if self._maker is None or self._loop != current_loop:
             # Recreate engine and sessionmaker
             new_engine = create_async_engine(DATABASE_URL, echo=False)
@@ -36,9 +39,11 @@ class DynamicAsyncSessionMaker:
     def __call__(self, *args, **kwargs):
         return self._get_maker()(*args, **kwargs)
 
+
 AsyncSessionLocal = DynamicAsyncSessionMaker()
 
 Base = declarative_base()
+
 
 async def get_db():
     async with AsyncSessionLocal() as session:

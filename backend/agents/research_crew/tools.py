@@ -1,29 +1,34 @@
 import os
-import httpx
 import re
+
+import httpx
 from crewai.tools import tool
 from tavily import TavilyClient
+
 
 @tool("TavilySearch")
 def tavily_search(query: str) -> list:
     """Search the web for the given query using Tavily and return a list of results."""
     api_key = os.getenv("TAVILY_API_KEY")
     if not api_key or api_key == "your_tavily_api_key_here":
-        return [{"title": "Error", "url": "", "content": "TAVILY_API_KEY is not configured or is a placeholder."}]
+        return [
+            {
+                "title": "Error",
+                "url": "",
+                "content": "TAVILY_API_KEY is not configured or is a placeholder.",
+            }
+        ]
     try:
         client = TavilyClient(api_key=api_key)
         response = client.search(query=query)
         results = response.get("results", [])
         return [
-            {
-                "title": r.get("title", ""),
-                "url": r.get("url", ""),
-                "content": r.get("content", "")
-            }
+            {"title": r.get("title", ""), "url": r.get("url", ""), "content": r.get("content", "")}
             for r in results
         ]
     except Exception as e:
         return [{"title": "Error", "url": "", "content": f"Search failed: {str(e)}"}]
+
 
 @tool("fetch_page_content")
 def fetch_page_content(url: str) -> str:
@@ -36,9 +41,10 @@ def fetch_page_content(url: str) -> str:
             response = client.get(url)
             response.raise_for_status()
             html = response.text
-            
+
             try:
                 from bs4 import BeautifulSoup
+
                 soup = BeautifulSoup(html, "html.parser")
                 # Remove non-content elements
                 for script in soup(["script", "style", "nav", "footer", "header"]):
@@ -51,7 +57,7 @@ def fetch_page_content(url: str) -> str:
                 return text
             except Exception:
                 # Basic tags stripping fallback
-                text = re.sub(r'<[^>]+>', ' ', html)
+                text = re.sub(r"<[^>]+>", " ", html)
                 return " ".join(text.split())
     except Exception as e:
         print(f"Error fetching page content for {url}: {e}")

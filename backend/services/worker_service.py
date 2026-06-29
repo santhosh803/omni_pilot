@@ -1,8 +1,9 @@
 import asyncio
 
 # In-process asynchronous queue for background jobs (Phase 3)
-BACKGROUND_QUEUE = asyncio.Queue()
+BACKGROUND_QUEUE: asyncio.Queue = asyncio.Queue()
 CURRENT_LOOP = None
+
 
 def get_background_queue():
     """Helper to get the background queue, recreating it if the running event loop changed."""
@@ -16,6 +17,7 @@ def get_background_queue():
         pass
     return BACKGROUND_QUEUE
 
+
 async def worker_loop():
     """Background worker process pulling and executing jobs from the queue."""
     print("Background Worker: Listening for tasks...")
@@ -27,13 +29,13 @@ async def worker_loop():
             retrieved = True
             func, args, kwargs = job
             print(f"Background Worker: Executing job '{func.__name__}'...")
-            
+
             # Execute task
             if asyncio.iscoroutinefunction(func):
                 await func(*args, **kwargs)
             else:
                 func(*args, **kwargs)
-                
+
             print(f"Background Worker: Finished job '{func.__name__}'")
         except asyncio.CancelledError:
             print("Background Worker: Shutting down worker listener.")
@@ -43,6 +45,7 @@ async def worker_loop():
         finally:
             if retrieved:
                 queue.task_done()
+
 
 def enqueue_background_job(func, *args, **kwargs):
     """Enqueues a task to the background processor."""

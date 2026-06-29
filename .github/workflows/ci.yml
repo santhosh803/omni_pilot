@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # -----------------------------------------------------------------------
+  # Backend: lint + type-check
+  # -----------------------------------------------------------------------
+  backend-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: uv pip install --system -r requirements.txt ruff mypy
+
+      - name: Ruff check
+        run: ruff check backend tests run_server.py
+
+      - name: Ruff format check
+        run: ruff format --check backend tests run_server.py
+
+      - name: Mypy
+        run: mypy backend tests
+
+  # -----------------------------------------------------------------------
+  # Backend: unit tests (integration tests requiring Postgres + API keys
+  # are deferred to Phase 3 once HITL markers are reconciled)
+  # -----------------------------------------------------------------------
+  backend-test:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql+asyncpg://omnipilot:omnipilot_pass@localhost:5433/omnipilot_db
+      GROQ_API_KEY: dummy
+      TAVILY_API_KEY: dummy
+      CEREBRAS_API_KEY: dummy
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: uv pip install --system -r requirements.txt pytest pytest-asyncio
+
+      - name: Run unit tests
+        run: pytest tests -k "not test_e2e and not test_research_crew and not test_list_sessions" -v
+
+  # -----------------------------------------------------------------------
+  # Frontend: lint + type-check + build
+  # -----------------------------------------------------------------------
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (oxlint)
+        run: npm run lint
+
+      - name: Build (tsc + vite)
+        run: npm run build
