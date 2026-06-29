@@ -1,6 +1,8 @@
 # OmniPilot AI
 > **Autonomous Multi-Agent Executive Assistant**
 
+[![CI](https://github.com/anomalyco/omni_pilot/actions/workflows/ci.yml/badge.svg)](https://github.com/anomalyco/omni_pilot/actions/workflows/ci.yml)
+
 OmniPilot AI is a production-grade multi-agent executive assistant system built using **FastAPI**, **LangGraph**, and **PostgreSQL (with pgvector)**. It orchestrates a Supervisor agent that dynamically routes user requests to specialized worker agents (Browser Search, Calendar Scheduling, Research Analysis) with robust Human-in-the-Loop (HITL) gates, semantic vector memory, and automated evaluation metrics.
 
 ---
@@ -55,7 +57,7 @@ omni_pilot/
 │   ├── api/                  # API endpoints (sessions, approvals)
 │   ├── agents/               # Supervisor, Browser, Calendar, and Research nodes
 │   │   └── research_crew/    # [NEW] CrewAI 4-agent sequential research crew package (Planner, Crawler, Analyst, Writer)
-│   ├── services/             # Playwright browser search, Cal.com calendar simulation,
+│   ├── services/             # Playwright browser search, Cal.com calendar integration,
 │   │                         # AI Router, Observability trackers, and Async background workers
 │   ├── database/             # SQLAlchemy configurations & tables
 │   ├── schemas/              # Pydantic validation schemas
@@ -81,10 +83,13 @@ omni_pilot/
   ```
 
 ### 2. Environment Variables
-Create a `.env` file in the root directory:
+Create a `.env` file in the root directory (see `.env.example` for the full list):
 ```env
 GROQ_API_KEY=your_groq_api_key_here
+CEREBRAS_API_KEY=your_cerebras_api_key_here
 TAVILY_API_KEY=your_tavily_api_key_here
+CALCOM_API_KEY=your_calcom_api_key_here
+CALCOM_EVENT_TYPE_ID=your_calcom_event_type_id
 DATABASE_URL=postgresql+asyncpg://omnipilot:omnipilot_pass@localhost:5433/omnipilot_db
 ```
 
@@ -122,7 +127,17 @@ Open **`http://127.0.0.1:8000/docs`** in your browser to interact with the API S
 
 ## 🧪 Testing & Evaluation
 
-Run the automated agent evaluation benchmark suite to verify routing accuracy, observability tracking, background task loops, and interrupts:
+Run the unit tests (no external dependencies required):
 ```bash
-pytest tests/test_agent_evaluation.py
+pytest tests -m unit -v
+```
+
+Run the full integration suite (requires Postgres + pgvector and API keys):
+```bash
+pytest tests -v
+```
+
+Frontend tests (vitest):
+```bash
+cd frontend && npm run test
 ```

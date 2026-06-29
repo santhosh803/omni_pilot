@@ -1,4 +1,5 @@
 import asyncio
+import os
 import sys
 
 # Configure Windows-specific event loop policy for psycopg compatibility
@@ -8,9 +9,11 @@ if sys.platform == "win32":
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
 from backend.api import approvals, sessions
+from backend.services.logger import logger
 from backend.services.worker_service import worker_loop
 
 load_dotenv()
@@ -19,17 +22,17 @@ load_dotenv()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Start background task processor
-    print("Lifespan: Starting background worker task...")
+    logger.info("Starting background worker task...")
     worker_task = asyncio.create_task(worker_loop())
 
     # Open connection pool and build checkpointer schema tables
-    print("Lifespan: Initializing Postgres checkpointer pool...")
+    logger.info("Initializing Postgres checkpointer pool...")
     import backend.workflows.agent_graph as agent_graph
 
     if agent_graph.pool._closed:
         from psycopg_pool import AsyncConnectionPool
 
-        print("Lifespan: Recreating closed Postgres connection pool...")
+        logger.info("Recreating closed Postgres connection pool...")
         agent_graph.pool = AsyncConnectionPool(
             conninfo=agent_graph.conn_info, max_size=10, kwargs={"autocommit": True}, open=False
         )
@@ -40,12 +43,12 @@ async def lifespan(app: FastAPI):
     yield
 
     # Cancel worker task on shutdown
-    print("Lifespan: Stopping background worker task...")
+    logger.info("Stopping background worker task...")
     worker_task.cancel()
     await asyncio.gather(worker_task, return_exceptions=True)
 
     # Close pool on shutdown
-    print("Lifespan: Closing Postgres checkpointer pool...")
+    logger.info("Closing Postgres checkpointer pool...")
     await agent_graph.pool.close()
 
 
@@ -60,12 +63,16 @@ app.include_router(sessions.router, prefix="/api")
 app.include_router(approvals.router, prefix="/api")
 
 
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    logger.error("Unhandled exception on %s %s: %s", request.method, request.url.path, exc)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
+
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
 
-
-import os
 
 from fastapi.staticfiles import StaticFiles
 
