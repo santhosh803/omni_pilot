@@ -11,29 +11,6 @@ from backend.services.agent_service import execute_or_resume_graph
 
 router = APIRouter(prefix="/sessions", tags=["Sessions"])
 
-@router.get("/", response_model=List[schemas.SessionResponse])
-async def list_recent_sessions(
-    db: AsyncSession = Depends(get_db)
-):
-    # Fetch 20 most recent sessions
-    result = await db.execute(
-        select(Session)
-        .order_by(Session.created_at.desc())
-        .limit(20)
-    )
-    sessions = result.scalars().all()
-    
-    # Attach runs for each session
-    for s in sessions:
-        runs_result = await db.execute(
-            select(AgentRun)
-            .filter(AgentRun.session_id == s.id)
-            .order_by(AgentRun.created_at.asc())
-        )
-        s.runs = runs_result.scalars().all()
-        
-    return sessions
-
 @router.post("/", response_model=schemas.SessionResponse)
 async def create_new_session(
     session_data: schemas.SessionCreate,
@@ -41,6 +18,36 @@ async def create_new_session(
 ):
     session = await crud.create_session(db, user_id=session_data.user_id)
     return session
+
+@router.get("/", response_model=List[schemas.SessionResponse])
+async def list_recent_sessions(
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(
+        select(Session)
+        .order_by(Session.created_at.desc())
+        .limit(20)
+    )
+    sessions = result.scalars().all()
+    
+    if sessions:
+        session_ids = [s.id for s in sessions]
+        
+        runs_result = await db.execute(
+            select(AgentRun)
+            .filter(AgentRun.session_id.in_(session_ids))
+            .order_by(AgentRun.created_at.asc())
+        )
+        all_runs = runs_result.scalars().all()
+        
+        runs_by_session = {}
+        for run in all_runs:
+            runs_by_session.setdefault(run.session_id, []).append(run)
+            
+        for session in sessions:
+            session.runs = runs_by_session.get(session.id, [])
+            
+    return sessions
 
 @router.get("/{session_id}", response_model=schemas.SessionResponse)
 async def get_session_details(
@@ -61,16 +68,6 @@ async def get_session_details(
     session.runs = runs
     
     return session
-
-@router.delete("/{session_id}")
-async def delete_existing_session(
-    session_id: int,
-    db: AsyncSession = Depends(get_db)
-):
-    success = await crud.delete_session(db, session_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Session not found")
-    return {"success": True}
 
 @router.post("/{session_id}/runs", response_model=schemas.AgentRunResponse)
 async def trigger_agent_run(
