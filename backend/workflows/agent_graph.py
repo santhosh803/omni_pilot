@@ -32,23 +32,94 @@ class AgentState(TypedDict):
     research_output: str
     research_sources: list[str]
     research_confidence: float
+    session_id: int
+
+
+def _llm_keys_configured() -> bool:
+    """Returns True when at least one LLM provider API key is set (non-placeholder)."""
+    cerebras = os.getenv("CEREBRAS_API_KEY", "")
+    groq = os.getenv("GROQ_API_KEY", "")
+    if cerebras and cerebras != "your_cerebras_api_key_here":
+        return True
+    if groq and groq != "your_groq_api_key_here":
+        return True
+    return False
+
+
+def _keyword_fallback_route(messages: Sequence[BaseMessage]) -> dict:
+    """Pure keyword routing used only when no LLM API key is configured."""
+    print("Supervisor: No LLM API keys configured — using keyword routing fallback.")
+
+    last_agent = None
+    if messages:
+        last_msg = messages[-1]
+        if getattr(last_msg, "name", None) in ["browser", "calendar", "research"]:
+            last_agent = last_msg.name
+
+    last_user_msg = ""
+    for msg in reversed(messages):
+        if isinstance(msg, HumanMessage):
+            last_user_msg = msg.content.lower()
+            break
+
+    if last_agent == "research":
+        if any(kw in last_user_msg for kw in ["calendar", "schedule", "event", "appointment"]):
+            next_node = "calendar"
+            instructions = (
+                "[Fallback] Research complete. Routing to Calendar Agent to schedule meeting."
+            )
+        else:
+            next_node = "finish"
+            instructions = "[Fallback] Task completed successfully by Research Agent."
+    elif last_agent == "browser":
+        if any(kw in last_user_msg for kw in ["calendar", "schedule", "event", "appointment"]):
+            next_node = "calendar"
+            instructions = "[Fallback] Web action complete. Routing to Calendar Agent to schedule."
+        else:
+            next_node = "finish"
+            instructions = "[Fallback] Task completed successfully by Browser Agent."
+    elif last_agent == "calendar":
+        next_node = "finish"
+        instructions = "[Fallback] Task completed successfully by Calendar Agent."
+    else:
+        if any(kw in last_user_msg for kw in ["research", "briefing", "report", "prepare"]):
+            next_node = "research"
+            instructions = "[Fallback] Routing to Research Agent to prepare briefings."
+        elif any(kw in last_user_msg for kw in ["calendar", "schedule", "event", "appointment"]):
+            next_node = "calendar"
+            instructions = "[Fallback] Routing to Calendar Agent to check/manage calendar schedule."
+        elif any(
+            kw in last_user_msg
+            for kw in ["search", "find", "restaurant", "web", "browser", "hotel"]
+        ):
+            next_node = "browser"
+            instructions = "[Fallback] Routing to Browser Agent to perform web search/action."
+        else:
+            next_node = "finish"
+            instructions = "[Fallback] No specific tools needed. Task finished."
+
+    print(f"Fallback Supervisor Decision: next={next_node}")
+    return {"next": next_node, "messages": [AIMessage(content=instructions, name="supervisor")]}
 
 
 async def supervisor_node(state: AgentState) -> dict:
     print("\n--- RUNNING SUPERVISOR ---")
     messages = state.get("messages", [])
 
-    # 1. Resolve user query to select the LLM model dynamically (AI Router - Phase 3)
+    # 1. Resolve user query to select the LLM model dynamically (AI Router)
     user_query = "Agent execution request"
     for msg in messages:
         if isinstance(msg, HumanMessage):
             user_query = msg.content
             break
 
-    model_name = select_model_for_task(user_query)
+    # 2. If no LLM keys are configured, use the keyword routing fallback.
+    if not _llm_keys_configured():
+        return _keyword_fallback_route(messages)
 
+    # 3. Invoke the LLM-backed supervisor chain.
+    model_name = select_model_for_task(user_query)
     try:
-        # Pass chosen model to the chain generator
         chain = get_supervisor_chain(model_name)
         response = await chain.ainvoke({"messages": messages})
         print(
@@ -59,69 +130,9 @@ async def supervisor_node(state: AgentState) -> dict:
             "messages": [AIMessage(content=response.instructions, name="supervisor")],
         }
     except Exception as e:
-        print(f"Supervisor warning (Using local keyword routing fallback): {e}")
-
-        # Check if an agent has already executed in this turn
-        last_agent = None
-        if messages:
-            last_msg = messages[-1]
-            if getattr(last_msg, "name", None) in ["browser", "calendar", "research"]:
-                last_agent = last_msg.name
-
-        # Keyword-based routing fallback for initial testing without API keys
-        last_user_msg = ""
-        for msg in reversed(messages):
-            if isinstance(msg, HumanMessage):
-                last_user_msg = msg.content.lower()
-                break
-
-        # Sequential fallback logic
-        if last_agent == "research":
-            # If research completed, check if we need to schedule a calendar event
-            if any(kw in last_user_msg for kw in ["calendar", "schedule", "event", "appointment"]):
-                next_node = "calendar"
-                instructions = (
-                    "[Fallback] Research complete. Routing to Calendar Agent to schedule meeting."
-                )
-            else:
-                next_node = "finish"
-                instructions = "[Fallback] Task completed successfully by Research Agent."
-        elif last_agent == "browser":
-            if any(kw in last_user_msg for kw in ["calendar", "schedule", "event", "appointment"]):
-                next_node = "calendar"
-                instructions = (
-                    "[Fallback] Web action complete. Routing to Calendar Agent to schedule."
-                )
-            else:
-                next_node = "finish"
-                instructions = "[Fallback] Task completed successfully by Browser Agent."
-        elif last_agent == "calendar":
-            next_node = "finish"
-            instructions = "[Fallback] Task completed successfully by Calendar Agent."
-        else:
-            # First turn routing heuristics
-            if any(kw in last_user_msg for kw in ["research", "briefing", "report", "prepare"]):
-                next_node = "research"
-                instructions = "[Fallback] Routing to Research Agent to prepare briefings."
-            elif any(
-                kw in last_user_msg for kw in ["calendar", "schedule", "event", "appointment"]
-            ):
-                next_node = "calendar"
-                instructions = (
-                    "[Fallback] Routing to Calendar Agent to check/manage calendar schedule."
-                )
-            elif any(
-                kw in last_user_msg
-                for kw in ["search", "find", "restaurant", "web", "browser", "hotel"]
-            ):
-                next_node = "browser"
-                instructions = "[Fallback] Routing to Browser Agent to perform web search/action."
-            else:
-                next_node = "finish"
-                instructions = "[Fallback] No specific tools needed. Task finished."
-
-        print(f"Fallback Supervisor Decision: next={next_node}")
-        return {"next": next_node, "messages": [AIMessage(content=instructions, name="supervisor")]}
+        # Keys are configured but the LLM call failed — do not silently fall back.
+        print(f"Supervisor error (LLM call failed with keys configured): {e}")
+        raise
 
 
 def route_next(state: AgentState):

@@ -28,7 +28,11 @@ async def execute_or_resume_graph(
     graph = await init_compiled_graph()
 
     # If a user query is provided, it's a new run. Otherwise, we are resuming from interrupt.
-    graph_input = {"messages": [HumanMessage(content=user_query)]} if user_query else None
+    graph_input = (
+        {"messages": [HumanMessage(content=user_query)], "session_id": session_id}
+        if user_query
+        else None
+    )
 
     try:
         # Run/Resume graph
