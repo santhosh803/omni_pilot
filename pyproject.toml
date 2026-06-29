@@ -100,6 +100,10 @@ exclude = ["frontend/", "migrations/versions/", ".venv/"]
 minversion = "8.3"
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "unit: fast tests with no external dependencies (DB, LLM, network)",
+    "integration: tests requiring Postgres + pgvector and/or API keys",
+]
 filterwarnings = [
     "ignore::DeprecationWarning",
 ]

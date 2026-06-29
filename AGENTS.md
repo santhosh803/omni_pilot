@@ -19,7 +19,7 @@ backend, React + Vite frontend, PostgreSQL with pgvector.
 | Format | `ruff format backend tests run_server.py` |
 | Format check | `ruff format --check backend tests run_server.py` |
 | Type-check | `mypy backend tests` |
-| Run unit tests | `pytest tests -k "not test_e2e and not test_research_crew and not test_list_sessions" -v` |
+| Run unit tests | `pytest tests -m unit -v` |
 | Run all tests | `pytest tests -v` (needs Postgres + pgvector + API keys) |
 
 ### Frontend (run from `frontend/`)
@@ -30,6 +30,7 @@ backend, React + Vite frontend, PostgreSQL with pgvector.
 | Dev server | `npm run dev` |
 | Build | `npm run build` (runs `tsc -b && vite build`) |
 | Lint | `npm run lint` (oxlint) |
+| Test | `npm run test` (vitest) |
 | Preview build | `npm run preview` |
 
 ### Database
@@ -54,7 +55,8 @@ Always run, in this order:
 2. `ruff format --check backend tests run_server.py` — must pass
 3. `mypy backend tests` — must pass
 4. `npm run lint` (in `frontend/`) — must pass
-5. `npm run build` (in `frontend/`) — must pass
+5. `npm run test` (in `frontend/`) — must pass
+6. `npm run build` (in `frontend/`) — must pass
 
 ## Architecture notes
 
@@ -67,8 +69,6 @@ Always run, in this order:
 
 ## Known issues (to be addressed in later phases)
 
-- Integration tests (`test_e2e_*`, `test_research_crew_*`, `test_list_sessions`) expect
-  interrupts before browser/research nodes, but the current `interrupt_before` config
-  only gates calendar. These are skipped in CI until reconciled in Phase 3.
-- Calendar service is an in-memory mock (`backend/services/calendar_service.py`).
-- `store_in_memory` hardcodes `session_id = 1` (`backend/agents/research.py`).
+- Integration tests (`test_e2e_*`, `test_research_crew_*`, `test_list_sessions`) require
+  Postgres + pgvector and are marked `@pytest.mark.integration`; run with `pytest tests -m integration`.
+- Browser agent uses Playwright (requires `playwright install chromium`).
