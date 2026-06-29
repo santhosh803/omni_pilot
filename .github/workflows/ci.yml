@@ -69,7 +69,7 @@ jobs:
         run: uv pip install --system -r requirements.txt pytest pytest-asyncio
 
       - name: Run unit tests
-        run: pytest tests -k "not test_e2e and not test_research_crew and not test_list_sessions" -v
+        run: pytest tests -m unit -v
 
   # -----------------------------------------------------------------------
   # Frontend: lint + type-check + build
@@ -94,6 +94,9 @@ jobs:
 
       - name: Lint (oxlint)
         run: npm run lint
+
+      - name: Test (vitest)
+        run: npm run test
 
       - name: Build (tsc + vite)
         run: npm run build

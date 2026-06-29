@@ -17,7 +17,8 @@ from backend.services.router_service import select_model_for_task
 from backend.services.worker_service import enqueue_background_job, worker_loop
 
 
-# --- 1. AI Router Evaluation Tests (Phase 3) ---
+# --- 1. AI Router Evaluation Tests ---
+@pytest.mark.unit
 def test_ai_router_eval():
     print("Evaluating AI Router decision logic...")
 
@@ -40,7 +41,8 @@ def test_ai_router_eval():
     )
 
 
-# --- 2. Observability Metrics Evaluation Tests (Phase 3) ---
+# --- 2. Observability Metrics Evaluation Tests ---
+@pytest.mark.unit
 def test_observability_tokens_eval():
     print("Evaluating Observability token estimator...")
     tracker = ObservabilityTracker(action_name="test_tokens")
@@ -51,8 +53,9 @@ def test_observability_tokens_eval():
     assert tracker.estimate_tokens("A" * 40) == 5
 
 
-# --- 3. Background Worker Queue Evaluation Tests (Phase 3) ---
+# --- 3. Background Worker Queue Evaluation Tests ---
 @pytest.mark.asyncio
+@pytest.mark.unit
 async def test_background_worker_queue_eval():
     print("Evaluating Background Worker processing...")
 
@@ -79,6 +82,7 @@ async def test_background_worker_queue_eval():
 
 
 # --- 4. E2E Checkpoint & HITL Interrupt API Test ---
+@pytest.mark.integration
 def test_e2e_hitl_checkpoints():
     print("Evaluating E2E Checkpoints and HITL interrupts...")
 
@@ -88,9 +92,10 @@ def test_e2e_hitl_checkpoints():
         assert response.status_code == 200
         session_id = response.json()["id"]
 
-        # Trigger run (should interrupt at browser node)
+        # Trigger run with a calendar query (calendar is the only gated node)
         response = client.post(
-            f"/api/sessions/{session_id}/runs", json={"query": "Search for AI news."}
+            f"/api/sessions/{session_id}/runs",
+            json={"query": "Schedule a meeting for tomorrow at 2 PM."},
         )
         assert response.status_code == 200
         run = response.json()
@@ -111,11 +116,13 @@ def test_e2e_hitl_checkpoints():
 
         # Approve task execution -> resumes graph
         response = client.post(
-            f"/api/approvals/{my_approval['id']}/respond", json={"approve": True}
+            f"/api/approvals/{my_approval['id']}/respond",
+            json={"approve": True},
         )
         assert response.status_code == 200
 
 
+@pytest.mark.integration
 def test_research_crew_quality():
     print("Evaluating Research Crew Quality...")
 
@@ -125,38 +132,17 @@ def test_research_crew_quality():
         assert response.status_code == 200
         session_id = response.json()["id"]
 
-        # Trigger run (should interrupt before research node)
+        # Research is not gated by HITL, so the graph runs to completion.
+        # With dummy/missing API keys the crew returns mock results.
         response = client.post(
             f"/api/sessions/{session_id}/runs",
             json={"query": "Prepare a deep research report on AI agent trends."},
         )
         assert response.status_code == 200
         run = response.json()
-        assert run["status"] == "interrupted"
-
-        # Fetch pending approvals
-        response = client.get("/api/approvals/pending")
-        assert response.status_code == 200
-        approvals = response.json()
-
-        my_approval = None
-        for appr in approvals:
-            if appr["agent_run_id"] == run["id"]:
-                my_approval = appr
-                break
-
-        assert my_approval is not None
-        assert my_approval["action_type"] == "execute_research"
-
-        # Approve task execution -> resumes graph and runs the research node
-        response = client.post(
-            f"/api/approvals/{my_approval['id']}/respond", json={"approve": True}
-        )
-        assert response.status_code == 200
+        assert run["status"] == "completed"
 
         # Query the database to get the updated agent run
-        import asyncio
-
         from sqlalchemy.future import select
 
         from backend.database.config import AsyncSessionLocal
@@ -187,6 +173,7 @@ def test_research_crew_quality():
         assert 0.0 <= confidence <= 1.0
 
 
+@pytest.mark.integration
 def test_list_sessions():
     print("Evaluating GET /api/sessions/ endpoint...")
     with TestClient(app) as client:
