@@ -1,5 +1,17 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bot, User, Globe, Calendar, BookOpen, Send, ChevronDown, ShieldAlert, Loader } from 'lucide-react';
+import {
+  Bot,
+  User,
+  Globe,
+  Calendar,
+  BookOpen,
+  Send,
+  ChevronDown,
+  ShieldAlert,
+  Loader,
+  ArrowRight,
+  CheckCircle2,
+} from 'lucide-react';
 import type { Message, Approval } from '../api';
 
 interface ChatPanelProps {
@@ -9,7 +21,20 @@ interface ChatPanelProps {
   onSendMessage: (content: string) => void;
   isLoading: boolean;
   activeSessionId: number | null;
+  /** The internal LangGraph node name currently executing, e.g. "browser" */
+  activeNode?: string | null;
+  /** A human-readable streaming status string, e.g. "Browser Agent is running…" */
+  streamStatus?: string;
 }
+
+// Map node names to display config
+const NODE_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string; badgeClass: string }> = {
+  supervisor:    { label: 'Supervisor',      icon: Bot,      color: 'var(--accent-violet)', badgeClass: 'supervisor' },
+  browser:       { label: 'Browser Agent',   icon: Globe,    color: 'var(--success)',        badgeClass: 'browser'    },
+  calendar:      { label: 'Calendar Agent',  icon: Calendar, color: 'var(--warning)',         badgeClass: 'calendar'   },
+  calendar_read: { label: 'Calendar Agent',  icon: Calendar, color: 'var(--warning)',         badgeClass: 'calendar'   },
+  research:      { label: 'Research Agent',  icon: BookOpen, color: 'var(--accent-indigo)',   badgeClass: 'research'   },
+};
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
   messages,
@@ -18,6 +43,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   onSendMessage,
   isLoading,
   activeSessionId,
+  activeNode,
+  streamStatus,
 }) => {
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -26,7 +53,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   // Auto-scroll to bottom of messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, pendingApprovals, isLoading]);
+  }, [messages, pendingApprovals, isLoading, streamStatus]);
 
   // Adjust textarea height automatically
   useEffect(() => {
@@ -49,7 +76,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     }
   };
 
-  // Helper to render message headers & badges
+  // Render the agent badge + icon in the message header
   const renderMessageHeader = (msg: Message) => {
     const isHuman = msg.role === 'human';
     if (isHuman) {
@@ -61,28 +88,57 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       );
     }
 
-    const name = msg.name || 'Assistant';
+    const name = msg.name || 'assistant';
     const lowerName = name.toLowerCase();
+    let nodeKey = 'supervisor';
+    if (lowerName.includes('browser'))  nodeKey = 'browser';
+    else if (lowerName.includes('calendar')) nodeKey = 'calendar';
+    else if (lowerName.includes('research')) nodeKey = 'research';
 
-    let Icon = Bot;
-    let badgeClass = 'supervisor';
-
-    if (lowerName.includes('browser')) {
-      Icon = Globe;
-      badgeClass = 'browser';
-    } else if (lowerName.includes('calendar')) {
-      Icon = Calendar;
-      badgeClass = 'calendar';
-    } else if (lowerName.includes('research')) {
-      Icon = BookOpen;
-      badgeClass = 'research';
-    }
+    const cfg = NODE_CONFIG[nodeKey] ?? NODE_CONFIG.supervisor;
+    const Icon = cfg.icon;
 
     return (
       <div className="message-header-meta assistant-meta">
         <Icon size={14} />
-        <span>{name}</span>
-        <span className={`agent-badge ${badgeClass}`}>{name}</span>
+        <span>{cfg.label}</span>
+        <span className={`agent-badge ${cfg.badgeClass}`}>{cfg.label}</span>
+      </div>
+    );
+  };
+
+  // Render a live "node progress" strip while a node is executing
+  const renderNodeProgress = () => {
+    if (!isLoading || !activeNode) return null;
+    const cfg = NODE_CONFIG[activeNode] ?? NODE_CONFIG.supervisor;
+    const Icon = cfg.icon;
+    return (
+      <div className="node-progress-strip">
+        <span className="node-progress-pulse" style={{ background: cfg.color }} />
+        <Icon size={13} style={{ color: cfg.color, flexShrink: 0 }} />
+        <span className="node-progress-label" style={{ color: cfg.color }}>
+          {streamStatus || `${cfg.label} is running…`}
+        </span>
+      </div>
+    );
+  };
+
+  // Render the generic loading bubble when loading but no node yet identified
+  const renderLoadingBubble = () => {
+    if (!isLoading) return null;
+
+    // If we already have an active node, the progress strip (above) is shown instead
+    if (activeNode) return null;
+
+    return (
+      <div className="message-bubble assistant" style={{ alignSelf: 'flex-start' }}>
+        <div className="message-header-meta assistant-meta">
+          <Loader size={14} className="animate-spin" />
+          <span>Supervisor</span>
+        </div>
+        <div style={{ marginTop: '0.25rem', color: 'var(--text-muted)' }}>
+          {streamStatus || 'Connecting…'}
+        </div>
       </div>
     );
   };
@@ -92,6 +148,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       <div className="chat-header">
         <Bot size={18} style={{ color: 'var(--accent-violet)' }} />
         <span>Execution Activity Feed</span>
+        {isLoading && (
+          <span className="stream-live-badge">
+            <span className="stream-live-dot" />
+            LIVE
+          </span>
+        )}
       </div>
 
       <div className="chat-messages-scroll">
@@ -100,7 +162,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             <Bot size={48} />
             <p>Create or load a session to view the activity feed.</p>
           </div>
-        ) : messages.length === 0 ? (
+        ) : messages.length === 0 && !isLoading ? (
           <div className="empty-state">
             <Bot size={48} />
             <p>No activity yet. Send a query to start the agent.</p>
@@ -116,7 +178,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 className={`message-bubble ${isHuman ? 'user' : 'assistant'}`}
               >
                 {renderMessageHeader(msg)}
-                
+
                 {isSupervisor ? (
                   <details className="routing-logs-container" open>
                     <summary className="routing-logs-toggle">
@@ -135,6 +197,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           })
         )}
 
+        {/* Live node progress strip — shown while a named node is executing */}
+        {renderNodeProgress()}
+
+        {/* Generic loading bubble — shown during connection / before first node */}
+        {renderLoadingBubble()}
+
         {/* Pending Approvals */}
         {pendingApprovals.map((approval) => (
           <div key={approval.id} className="approval-card">
@@ -151,6 +219,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 onClick={() => onRespondApproval(approval.id, true)}
                 disabled={isLoading}
               >
+                <CheckCircle2 size={14} />
                 Approve
               </button>
               <button
@@ -163,18 +232,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             </div>
           </div>
         ))}
-
-        {isLoading && (
-          <div className="message-bubble assistant" style={{ alignSelf: 'flex-start' }}>
-            <div className="message-header-meta assistant-meta">
-              <Loader size={14} className="animate-spin" />
-              <span>Supervisor</span>
-            </div>
-            <div style={{ marginTop: '0.25rem', color: 'var(--text-muted)' }}>
-              Agent is executing task...
-            </div>
-          </div>
-        )}
 
         <div ref={messagesEndRef} />
       </div>
@@ -207,6 +264,14 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             )}
           </button>
         </div>
+
+        {/* Live status bar — only visible while streaming */}
+        {isLoading && streamStatus && (
+          <div className="stream-status-bar">
+            <ArrowRight size={12} className="stream-status-arrow" />
+            <span>{streamStatus}</span>
+          </div>
+        )}
       </div>
     </div>
   );

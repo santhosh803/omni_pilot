@@ -7,14 +7,6 @@ from backend.agents.research_crew.tools import fetch_page_content, tavily_search
 
 
 def get_llm():
-    cerebras_key = os.getenv("CEREBRAS_API_KEY")
-    if cerebras_key and cerebras_key != "your_cerebras_api_key_here":
-        return ChatOpenAI(
-            model="gpt-oss-120b",
-            temperature=0.1,
-            openai_api_key=cerebras_key,
-            openai_api_base="https://api.cerebras.ai/v1",
-        )
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key or api_key == "your_groq_api_key_here":
         raise ValueError("GROQ_API_KEY is not configured in the .env file.")

@@ -1,5 +1,5 @@
 import React from 'react';
-import { PlusCircle, Database, Server } from 'lucide-react';
+import { PlusCircle, Database, Server, Trash2, ChevronRight } from 'lucide-react';
 import type { Session } from '../api';
 
 interface SessionSidebarProps {
@@ -7,6 +7,7 @@ interface SessionSidebarProps {
   activeSessionId: number | null;
   onSelectSession: (id: number) => void;
   onCreateSession: () => void;
+  onDeleteSession: (id: number) => void;
   systemStatus: 'online' | 'busy' | 'error';
   isOpen: boolean;
 }
@@ -16,6 +17,7 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
   activeSessionId,
   onSelectSession,
   onCreateSession,
+  onDeleteSession,
   systemStatus,
   isOpen,
 }) => {
@@ -51,19 +53,24 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
               >
                 <div className="session-title">
                   <span>Session #{session.id}</span>
-                  {isActive && (
-                    <span
-                      style={{
-                        width: '6px',
-                        height: '6px',
-                        borderRadius: '50%',
-                        backgroundColor: 'var(--accent-violet)',
-                        boxShadow: '0 0 6px var(--accent-violet)',
-                      }}
-                    />
-                  )}
                 </div>
-                <div className="session-meta">{dateStr}</div>
+                <div className="session-meta">
+                  <span>{dateStr}</span>
+                  {isActive && <span className="session-active-chip">Active</span>}
+                </div>
+                <div className="session-actions">
+                  <ChevronRight size={16} className="chevron" />
+                  <button
+                    className="btn-delete-session"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteSession(session.id);
+                    }}
+                    title="Delete session"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               </div>
             );
           })

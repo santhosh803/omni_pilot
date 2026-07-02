@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -7,6 +8,7 @@ from backend.database.config import get_db
 from backend.database.models import AgentRun, Session
 from backend.schemas import agent as schemas
 from backend.services.agent_service import execute_or_resume_graph
+from backend.services.stream_service import stream_agent_execution
 
 router = APIRouter(prefix="/sessions", tags=["Sessions"])
 
@@ -62,6 +64,16 @@ async def get_session_details(session_id: int, db: AsyncSession = Depends(get_db
     return session
 
 
+from fastapi import Response
+
+@router.delete("/{session_id}", status_code=204)
+async def delete_session_endpoint(session_id: int, db: AsyncSession = Depends(get_db)):
+    deleted = await crud.delete_session(db, session_id=session_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return Response(status_code=204)
+
+
 @router.post("/{session_id}/runs", response_model=schemas.AgentRunResponse)
 async def trigger_agent_run(
     session_id: int, run_data: schemas.AgentRunCreate, db: AsyncSession = Depends(get_db)
@@ -96,3 +108,40 @@ async def trigger_agent_run(
             db, run_id=run.id, status="failed", state={"error": str(e)}
         )
         raise HTTPException(status_code=500, detail=f"Agent workflow failed: {str(e)}") from e
+
+
+@router.post("/{session_id}/runs/stream")
+async def stream_agent_run(
+    session_id: int, run_data: schemas.AgentRunCreate, db: AsyncSession = Depends(get_db)
+):
+    """
+    Streaming variant of trigger_agent_run.
+    Returns a text/event-stream response where each SSE event reports live
+    progress of the LangGraph workflow (node_start, node_end, message,
+    routing, interrupt, complete, error).
+    """
+    # Verify session exists
+    session = await crud.get_session(db, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Log the overall user request as a task
+    await crud.create_task(db, session_id=session_id, description=run_data.query)
+
+    # Initialize the AgentRun db entry (status="running")
+    run = await crud.create_agent_run(db, session_id=session_id, agent_type="supervisor")
+
+    return StreamingResponse(
+        stream_agent_execution(
+            session_id=session_id,
+            run_id=run.id,
+            db=db,
+            user_query=run_data.query,
+        ),
+        media_type="text/event-stream",
+        headers={
+            # Prevent buffering by proxies / nginx
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )

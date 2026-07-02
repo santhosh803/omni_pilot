@@ -15,27 +15,23 @@ class RouteResponse(BaseModel):
     )
 
 
+GROQ_MODELS = {
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+    "qwen-2.5-32b",
+    "mixtral-8x7b-32768",
+    "gemma2-9b-it",
+    "deepseek-r1-distill-llama-70b",
+}
+
 def get_supervisor_chain(model_name: str = "llama-3.3-70b-versatile"):
     """Creates the supervisor routing chain, configured with a dynamic model chosen by the AI Router."""
-    cerebras_key = os.getenv("CEREBRAS_API_KEY")
-    if cerebras_key and cerebras_key != "your_cerebras_api_key_here":
-        from langchain_openai import ChatOpenAI
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key or api_key == "your_groq_api_key_here":
+        raise ValueError("GROQ_API_KEY not configured in .env file.")
 
-        # Map model names to Cerebras equivalents
-        cerebras_model = "gpt-oss-120b"
-        print(f"Supervisor: Routing to Cerebras using model '{cerebras_model}'...")
-        llm = ChatOpenAI(
-            model=cerebras_model,
-            temperature=0,
-            openai_api_key=cerebras_key,
-            openai_api_base="https://api.cerebras.ai/v1",
-        )
-    else:
-        api_key = os.getenv("GROQ_API_KEY")
-        if not api_key or api_key == "your_groq_api_key_here":
-            raise ValueError("GROQ_API_KEY not configured in .env file.")
-
-        llm = ChatGroq(model=model_name, temperature=0, api_key=api_key)
+    print(f"Supervisor: Routing to Groq using model '{model_name}'...")
+    llm = ChatGroq(model=model_name, temperature=0, api_key=api_key)
 
     structured_llm = llm.with_structured_output(RouteResponse)
 
