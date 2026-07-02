@@ -40,6 +40,17 @@ async def lifespan(app: FastAPI):
 
     await agent_graph.pool.open()
     await agent_graph.init_compiled_graph()
+
+    # Pre-resolve Cal.com event slugs -> event type IDs at startup (fail-fast)
+    from backend.services.calendar_service import resolve_all_event_types
+
+    try:
+        await resolve_all_event_types()
+    except Exception as e:
+        logger.warning(
+            "Cal.com startup slug resolution failed: %s (will retry on first booking)", e
+        )
+
     yield
 
     # Cancel worker task on shutdown

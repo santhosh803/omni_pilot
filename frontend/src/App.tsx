@@ -4,17 +4,21 @@ import {
   fetchSessions,
   fetchSession,
   createSession,
-  submitRun,
+  deleteSession,
+  submitRunStream,
   respondApproval,
   fetchPendingApprovals,
 } from './api';
-import type { Session, Message, Approval } from './api';
+import type { Session, Message, Approval, StreamEvent } from './api';
 import { SessionSidebar } from './components/SessionSidebar';
 import { ChatPanel } from './components/ChatPanel';
 import { BriefingViewer } from './components/BriefingViewer';
+import { useTheme } from './hooks/useTheme';
+import { ThemeToggle } from './components/ThemeToggle';
 import './styles.css';
 
 function App() {
+  const { theme, toggleTheme, buttonRef: themeButtonRef } = useTheme();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -22,9 +26,12 @@ function App() {
   const [researchOutput, setResearchOutput] = useState<string | undefined>(undefined);
   const [researchSources, setResearchSources] = useState<string[] | undefined>(undefined);
   const [researchConfidence, setResearchConfidence] = useState<number | undefined>(undefined);
-  
+
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
+  // Live streaming state
+  const [activeNode, setActiveNode] = useState<string | null>(null);
+  const [streamStatus, setStreamStatus] = useState<string>('');
 
   // Load session list on mount
   const loadSessions = useCallback(async (selectDefault = false) => {
@@ -157,20 +164,91 @@ function App() {
     setIsSidebarOpen(false);
   };
 
-  // Submit run / query
+  // Delete session
+  const handleDeleteSession = async (id: number) => {
+    try {
+      await deleteSession(id);
+      // Remove from list
+      setSessions(prev => prev.filter(s => s.id !== id));
+      // If deleting the active session, clear it
+      if (id === activeSessionId) {
+        setActiveSessionId(null);
+      }
+    } catch (err) {
+      alert(`Failed to delete session: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  };
+
+  // Submit run / query — uses SSE streaming for live progress
   const handleSendMessage = async (query: string) => {
     if (activeSessionId === null) return;
-    try {
-      setIsLoading(true);
-      // Optimistically append user message to feed
-      setMessages(prev => [...prev, { role: 'human', content: query }]);
-      await submitRun(activeSessionId, query);
-      await loadSessionDetails();
-    } catch (err) {
-      alert(`Execution Error: ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      setIsLoading(false);
-    }
+
+    // Optimistically append user message and set loading
+    setMessages(prev => [...prev, { role: 'human', content: query }]);
+    setIsLoading(true);
+    setActiveNode(null);
+    setStreamStatus('Connecting...');
+
+    const handleEvent = (event: StreamEvent) => {
+      const p = event.payload;
+      switch (event.type) {
+        case 'node_start':
+          setActiveNode(p.node as string);
+          setStreamStatus(`${p.label as string} is running…`);
+          break;
+
+        case 'node_end':
+          setStreamStatus(`${p.label as string} completed`);
+          break;
+
+        case 'routing': {
+          const dest = p.next_label as string;
+          setStreamStatus(`Routing → ${dest}`);
+          break;
+        }
+
+        case 'message': {
+          const msg = p as unknown as Message;
+          // Avoid duplicating the optimistic human message
+          if (msg.role !== 'human') {
+            setMessages(prev => [...prev, msg]);
+          }
+          break;
+        }
+
+        case 'interrupt': {
+          setStreamStatus('Waiting for your approval…');
+          // Reload approvals so the approval card appears immediately
+          loadApprovals();
+          break;
+        }
+
+        case 'complete':
+          setStreamStatus('Done');
+          break;
+
+        case 'error':
+          setStreamStatus(`Error: ${p.error as string}`);
+          break;
+      }
+    };
+
+    await submitRunStream(activeSessionId, query, {
+      onEvent: handleEvent,
+      onDone: () => {
+        setIsLoading(false);
+        setActiveNode(null);
+        setStreamStatus('');
+        // Sync final state from DB (research output, sources, etc.)
+        loadSessionDetails();
+      },
+      onError: (err) => {
+        setIsLoading(false);
+        setActiveNode(null);
+        setStreamStatus('');
+        alert(`Execution Error: ${err.message}`);
+      },
+    });
   };
 
   // Respond to approval gate
@@ -218,6 +296,7 @@ function App() {
           <div className="logo-section">
             <img src="/favicon.svg" alt="OmniPilot Logo" width={20} height={20} />
             <span>OmniPilot AI</span>
+            <ThemeToggle theme={theme} onToggle={toggleTheme} buttonRef={themeButtonRef} />
           </div>
         </div>
         <div className="header-actions">
@@ -235,6 +314,7 @@ function App() {
         activeSessionId={activeSessionId}
         onSelectSession={handleSelectSession}
         onCreateSession={handleCreateSession}
+        onDeleteSession={handleDeleteSession}
         systemStatus={getSystemStatus()}
         isOpen={isSidebarOpen}
       />
@@ -246,6 +326,8 @@ function App() {
         onSendMessage={handleSendMessage}
         isLoading={isLoading}
         activeSessionId={activeSessionId}
+        activeNode={activeNode}
+        streamStatus={streamStatus}
       />
 
       <BriefingViewer

@@ -86,7 +86,6 @@ omni_pilot/
 Create a `.env` file in the root directory (see `.env.example` for the full list):
 ```env
 GROQ_API_KEY=your_groq_api_key_here
-CEREBRAS_API_KEY=your_cerebras_api_key_here
 TAVILY_API_KEY=your_tavily_api_key_here
 CALCOM_API_KEY=your_calcom_api_key_here
 CALCOM_EVENT_TYPE_ID=your_calcom_event_type_id

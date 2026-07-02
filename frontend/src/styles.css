@@ -14,6 +14,75 @@
   --warning:        #F59E0B;
   --danger:         #EF4444;
   --header-height:  48px;
+
+  /* Custom component coloring variables for dark mode */
+  --radial-glow-1:  rgba(99, 102, 241, 0.12);
+  --radial-glow-2:  rgba(139, 92, 246, 0.10);
+  
+  --bg-header:      rgba(11, 14, 26, 0.85);
+  --bg-sidebar:     rgba(10, 12, 22, 0.5);
+  --bg-sidebar-mobile: rgba(11, 14, 26, 0.98);
+  --bg-session-item: rgba(255, 255, 255, 0.01);
+  
+  --bg-chat-input:  rgba(11, 14, 26, 0.5);
+  --bg-input-box:   rgba(0, 0, 0, 0.25);
+  --bg-briefing-panel: rgba(8, 10, 18, 0.4);
+  --bg-routing-content: rgba(0, 0, 0, 0.2);
+  --text-routing-content: var(--text-muted);
+  
+  --bg-code-pre:    rgba(0, 0, 0, 0.4);
+  --text-code-pre:  var(--text-primary);
+  --bg-code-inline: rgba(255, 255, 255, 0.08);
+  --text-code-inline: #ff79c6;
+
+  --logo-gradient-start: #ffffff;
+
+  --active-chip-color:  #A78BFA;
+  --active-chip-bg:     rgba(139, 92, 246, 0.16);
+  --active-chip-border: rgba(139, 92, 246, 0.3);
+}
+
+[data-theme="light"] {
+  --bg-base:        #F8FAFC;   /* slate-50 light background */
+  --bg-panel:       rgba(255, 255, 255, 0.8);  /* white glass panel */
+  --bg-panel-hover: rgba(241, 245, 249, 0.95);  /* slate-100 */
+  --border-subtle:  rgba(99, 102, 241, 0.12);
+  --border-active:  rgba(139, 92, 246, 0.4);
+  --accent-indigo:  #4F46E5;   /* accessible darker indigo */
+  --accent-violet:  #7C3AED;   /* accessible darker violet */
+  --accent-glow:    rgba(99, 102, 241, 0.1);
+  --text-primary:   #0F172A;   /* slate-900 */
+  --text-secondary: #475569;   /* slate-600 */
+  --text-muted:     #64748B;   /* slate-500 */
+  --success:        #0D9488;
+  --warning:        #D97706;
+  --danger:         #DC2626;
+
+  /* Custom component coloring variables for light mode */
+  --radial-glow-1:  rgba(99, 102, 241, 0.05);
+  --radial-glow-2:  rgba(139, 92, 246, 0.04);
+  
+  --bg-header:      rgba(248, 250, 252, 0.92);
+  --bg-sidebar:     rgba(241, 245, 249, 0.6);
+  --bg-sidebar-mobile: rgba(248, 250, 252, 0.98);
+  --bg-session-item: rgba(255, 255, 255, 0.4);
+  
+  --bg-chat-input:  rgba(255, 255, 255, 0.85);
+  --bg-input-box:   rgba(241, 245, 249, 0.8);
+  --bg-briefing-panel: rgba(248, 250, 252, 0.7);
+  --bg-routing-content: rgba(241, 245, 249, 0.9);
+  --text-routing-content: #475569;
+  
+  --bg-code-pre:    #F1F5F9;
+  --text-code-pre:  #0F172A;
+  --bg-code-inline: rgba(99, 102, 241, 0.08);
+  --text-code-inline: #4F46E5;
+
+  --logo-gradient-start: #0F172A;
+
+  --active-chip-color:  #6D28D9;
+  --active-chip-bg:     rgba(109, 40, 217, 0.08);
+  --active-chip-border: rgba(109, 40, 217, 0.2);
 }
 
 * {
@@ -37,8 +106,8 @@ body::before {
   content: '';
   position: fixed; inset: 0; z-index: -1;
   background:
-    radial-gradient(ellipse 80% 50% at 20% 10%, rgba(99,102,241,0.12) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 40% at 80% 90%, rgba(139,92,246,0.10) 0%, transparent 60%),
+    radial-gradient(ellipse 80% 50% at 20% 10%, var(--radial-glow-1) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 90%, var(--radial-glow-2) 0%, transparent 60%),
     var(--bg-base);
 }
 
@@ -70,7 +139,7 @@ body::before {
   align-items: center;
   justify-content: space-between;
   padding: 0 1.5rem;
-  background: rgba(11, 14, 26, 0.85);
+  background: var(--bg-header);
   border-bottom: 1px solid var(--border-subtle);
   backdrop-filter: blur(8px);
   z-index: 10;
@@ -82,7 +151,7 @@ body::before {
   gap: 0.75rem;
   font-weight: 700;
   font-size: 1.1rem;
-  background: linear-gradient(135deg, #fff 40%, var(--accent-indigo) 100%);
+  background: linear-gradient(135deg, var(--logo-gradient-start) 40%, var(--accent-indigo) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -122,7 +191,7 @@ body::before {
 /* Sidebar Column */
 .sidebar-panel {
   grid-column: 1;
-  background: rgba(10, 12, 22, 0.5);
+  background: var(--bg-sidebar);
   border-right: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
@@ -171,9 +240,10 @@ body::before {
 }
 
 .session-item {
+  position: relative;
   padding: 0.75rem 1rem;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.01);
+  background: var(--bg-session-item);
   border: 1px solid transparent;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -188,7 +258,7 @@ body::before {
 }
 
 .session-item.active {
-  background: rgba(139, 92, 246, 0.08);
+  background: var(--bg-session-item-active);
   border-left: 3px solid var(--accent-violet);
   border-color: var(--border-subtle);
   box-shadow: inset 0 0 12px rgba(139, 92, 246, 0.05);
@@ -204,7 +274,63 @@ body::before {
 
 .session-meta {
   font-size: 0.75rem;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+/* Session actions: chevron + delete button stacked in a 24x24 container */
+.session-actions {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.session-actions .chevron {
+  position: absolute;
   color: var(--text-muted);
+  transition: opacity 0.15s ease;
+}
+
+.btn-delete-session {
+  position: absolute;
+  right: -4px;
+  background: transparent;
+  border: none;
+  color: var(--danger);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease;
+  z-index: 2;
+}
+
+.btn-delete-session:hover {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+/* Show delete on hover or active, hide chevron */
+.session-item:hover .btn-delete-session,
+.session-item.active .btn-delete-session {
+  opacity: 1;
+}
+
+.session-item:hover .chevron,
+.session-item.active .chevron {
+  opacity: 0;
 }
 
 .sidebar-footer {
@@ -323,8 +449,8 @@ body::before {
   margin-top: 0.5rem;
   font-family: monospace;
   font-size: 0.8rem;
-  color: var(--text-muted);
-  background: rgba(0, 0, 0, 0.2);
+  color: var(--text-routing-content);
+  background: var(--bg-routing-content);
   padding: 0.5rem;
   border-radius: 6px;
   white-space: pre-wrap;
@@ -394,7 +520,7 @@ body::before {
 .chat-input-area {
   padding: 1rem;
   border-top: 1px solid var(--border-subtle);
-  background: rgba(11, 14, 26, 0.5);
+  background: var(--bg-chat-input);
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -403,7 +529,7 @@ body::before {
 .input-container-box {
   display: flex;
   align-items: flex-end;
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--bg-input-box);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
   padding: 0.5rem;
@@ -461,7 +587,7 @@ body::before {
   flex-direction: column;
   height: calc(100vh - var(--header-height));
   overflow: hidden;
-  background: rgba(8, 10, 18, 0.4);
+  background: var(--bg-briefing-panel);
 }
 
 .briefing-header {
@@ -547,7 +673,8 @@ body::before {
 }
 
 .briefing-markdown pre {
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--bg-code-pre);
+  color: var(--text-code-pre);
   padding: 1rem;
   border-radius: 8px;
   overflow-x: auto;
@@ -557,11 +684,11 @@ body::before {
 
 .briefing-markdown code {
   font-family: monospace;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--bg-code-inline);
   padding: 0.2rem 0.4rem;
   border-radius: 4px;
   font-size: 0.85em;
-  color: #ff79c6; /* slight pinkish hue for inline code */
+  color: var(--text-code-inline);
 }
 
 .briefing-markdown pre code {
@@ -652,6 +779,99 @@ body::before {
   to { transform: rotate(360deg); }
 }
 
+/* ---- Streaming / Live UI ---- */
+
+/* "LIVE" badge in the chat header */
+.stream-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--danger);
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  padding: 0.1rem 0.45rem;
+  border-radius: 9999px;
+  margin-left: auto;
+}
+
+.stream-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--danger);
+  animation: livePulse 1.2s ease-in-out infinite;
+}
+
+@keyframes livePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.4; transform: scale(0.75); }
+}
+
+/* Node progress strip — shown inside the message feed while a node is active */
+.node-progress-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.9rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-subtle);
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  align-self: flex-start;
+  max-width: 85%;
+  animation: slideUp 0.2s ease-out;
+}
+
+/* Pulsing colored dot inside the progress strip */
+.node-progress-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: nodePulse 1s ease-in-out infinite;
+}
+
+@keyframes nodePulse {
+  0%, 100% { opacity: 1;   box-shadow: 0 0 0 0 currentColor; }
+  50%       { opacity: 0.6; box-shadow: 0 0 0 4px rgba(255,255,255,0); }
+}
+
+.node-progress-label {
+  font-weight: 600;
+}
+
+/* Status bar below the text input — shows the current stream status */
+.stream-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  padding: 0 0.25rem;
+  animation: fadeIn 0.2s ease;
+}
+
+.stream-status-arrow {
+  color: var(--accent-violet);
+  flex-shrink: 0;
+  animation: arrowSlide 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes arrowSlide {
+  from { transform: translateX(0); }
+  to   { transform: translateX(3px); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 /* Mobile Responsive Styling */
 @media (max-width: 768px) {
   .app-layout {
@@ -673,7 +893,7 @@ body::before {
     width: 280px;
     height: calc(100vh - var(--header-height));
     z-index: 100;
-    background: rgba(11, 14, 26, 0.98);
+    background: var(--bg-sidebar-mobile);
     transition: left 0.3s ease;
     grid-column: 1;
     box-shadow: 10px 0 30px rgba(0, 0, 0, 0.7);
@@ -694,4 +914,90 @@ body::before {
     grid-column: 1;
     height: 60vh;
   }
+}
+
+/* ---- Theme Toggle Button ---- */
+.theme-toggle-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease, transform 0.3s ease;
+  margin-left: 0.5rem;
+}
+
+.theme-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  border-color: var(--border-active);
+  transform: scale(1.05);
+}
+
+.theme-icon {
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.theme-toggle-btn:active .theme-icon {
+  transform: rotate(45deg) scale(0.95);
+}
+
+[data-theme="light"] .theme-toggle-btn {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+[data-theme="light"] .theme-toggle-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+/* ---- Active Session indicator chip ---- */
+.session-active-chip {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--active-chip-color);
+  background: var(--active-chip-bg);
+  border: 1px solid var(--active-chip-border);
+  padding: 0.1rem 0.45rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  line-height: 1;
+}
+
+/* ---- View Transitions Circle Expansion Styling ---- */
+
+/* Disable default cross-fade; we drive animation manually via JS */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+/*
+  Default (→ light mode):
+  New light-mode snapshot sits on top and expands as a circle.
+*/
+::view-transition-old(root) {
+  z-index: 1;
+}
+
+::view-transition-new(root) {
+  z-index: 9999;
+}
+
+/*
+  Dark-mode transition (.to-dark added by JS before startViewTransition):
+  Old light-mode snapshot shrinks as a circle to reveal the new dark mode behind it.
+*/
+.to-dark::view-transition-old(root) {
+  z-index: 9999;
+}
+
+.to-dark::view-transition-new(root) {
+  z-index: 1;
 }

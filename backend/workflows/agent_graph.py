@@ -37,10 +37,7 @@ class AgentState(TypedDict):
 
 def _llm_keys_configured() -> bool:
     """Returns True when at least one LLM provider API key is set (non-placeholder)."""
-    cerebras = os.getenv("CEREBRAS_API_KEY", "")
     groq = os.getenv("GROQ_API_KEY", "")
-    if cerebras and cerebras != "your_cerebras_api_key_here":
-        return True
     if groq and groq != "your_groq_api_key_here":
         return True
     return False

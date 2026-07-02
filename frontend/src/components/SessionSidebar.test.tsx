@@ -5,6 +5,7 @@ import { SessionSidebar } from './SessionSidebar'
 const baseProps = {
   onSelectSession: () => {},
   onCreateSession: () => {},
+  onDeleteSession: () => {},
   systemStatus: 'online' as const,
   isOpen: false,
 }

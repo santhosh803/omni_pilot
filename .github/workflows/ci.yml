@@ -51,7 +51,6 @@ jobs:
       DATABASE_URL: postgresql+asyncpg://omnipilot:omnipilot_pass@localhost:5433/omnipilot_db
       GROQ_API_KEY: dummy
       TAVILY_API_KEY: dummy
-      CEREBRAS_API_KEY: dummy
     steps:
       - uses: actions/checkout@v4
 
