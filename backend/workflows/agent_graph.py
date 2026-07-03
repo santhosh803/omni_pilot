@@ -13,11 +13,19 @@ from backend.agents.browser import browser_node
 from backend.agents.calendar import calendar_node, calendar_read_node
 from backend.agents.research import research_node
 from backend.agents.supervisor import get_supervisor_chain
+from backend.services.memory_context import build_memory_context
 from backend.services.router_service import select_model_for_task
 
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 conn_info = DATABASE_URL.replace("+asyncpg", "")
+
+# HITL interrupt configuration: which agent nodes require human approval before
+# executing. Controlled via the HITL_INTERRUPT_NODES env var (comma-separated).
+# Default: only calendar writes are gated. Set to "calendar,browser,research"
+# to gate all side-effecting agents.
+_default_interrupts = os.getenv("HITL_INTERRUPT_NODES", "calendar")
+INTERRUPT_NODES: list[str] = [n.strip() for n in _default_interrupts.split(",") if n.strip()]
 
 # Create the pool config (to be opened on main startup)
 pool = AsyncConnectionPool(conninfo=conn_info, max_size=10, kwargs={"autocommit": True}, open=False)
@@ -102,6 +110,7 @@ def _keyword_fallback_route(messages: Sequence[BaseMessage]) -> dict:
 async def supervisor_node(state: AgentState) -> dict:
     print("\n--- RUNNING SUPERVISOR ---")
     messages = state.get("messages", [])
+    session_id = state.get("session_id", 0)
 
     # 1. Resolve user query to select the LLM model dynamically (AI Router)
     user_query = "Agent execution request"
@@ -110,15 +119,32 @@ async def supervisor_node(state: AgentState) -> dict:
             user_query = msg.content
             break
 
-    # 2. If no LLM keys are configured, use the keyword routing fallback.
+    # 2. Enrich context with RAG-retrieved user memories and past briefings.
+    memory_context = ""
+    if session_id:
+        memory_context = await build_memory_context(user_query, session_id)
+        if memory_context:
+            print(f"Supervisor: Injected memory context ({len(memory_context)} chars) into prompt.")
+
+    # 3. If no LLM keys are configured, use the keyword routing fallback.
     if not _llm_keys_configured():
         return _keyword_fallback_route(messages)
 
-    # 3. Invoke the LLM-backed supervisor chain.
+    # 4. Invoke the LLM-backed supervisor chain, injecting memory context if available.
     model_name = select_model_for_task(user_query)
     try:
         chain = get_supervisor_chain(model_name)
-        response = await chain.ainvoke({"messages": messages})
+
+        # Prepend memory context as a system-level note when available
+        enriched_messages = messages
+        if memory_context:
+            enriched_messages = [
+                HumanMessage(
+                    content=f"[Context from memory]\n{memory_context}\n\n[User request]\n{user_query}"
+                )
+            ] + list(messages)
+
+        response = await chain.ainvoke({"messages": enriched_messages})
         print(
             f"Supervisor Decision (LLM - {model_name}): next={response.next}, instructions={response.instructions}"
         )
@@ -226,8 +252,13 @@ async def init_compiled_graph():
     """Dynamically compiles the graph with Checkpointer inside the active event loop."""
     global compiled_graph
     if compiled_graph is None:
-        print("Graph: Compiling StateGraph with AsyncPostgresSaver checkpointer...")
+        print(
+            f"Graph: Compiling StateGraph with AsyncPostgresSaver checkpointer "
+            f"(interrupt_before={INTERRUPT_NODES})..."
+        )
         checkpointer = AsyncPostgresSaver(pool)
         await checkpointer.setup()
-        compiled_graph = workflow.compile(checkpointer=checkpointer, interrupt_before=["calendar"])
+        compiled_graph = workflow.compile(
+            checkpointer=checkpointer, interrupt_before=INTERRUPT_NODES
+        )
     return compiled_graph

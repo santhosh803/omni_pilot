@@ -24,6 +24,7 @@ GROQ_MODELS = {
     "deepseek-r1-distill-llama-70b",
 }
 
+
 def get_supervisor_chain(model_name: str = "llama-3.3-70b-versatile"):
     """Creates the supervisor routing chain, configured with a dynamic model chosen by the AI Router."""
     api_key = os.getenv("GROQ_API_KEY")

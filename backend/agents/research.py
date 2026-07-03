@@ -4,6 +4,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from backend.agents.research_crew.crew import run_research_crew
 from backend.database.config import AsyncSessionLocal
+from backend.services.memory_context import find_similar_briefing
 from backend.services.memory_service import add_meeting_history
 from backend.services.worker_service import enqueue_background_job
 
@@ -46,17 +47,40 @@ async def research_node(state) -> dict:
             query = msg.content
             break
 
-    # 2. Run synchronous CrewAI crew in a thread to avoid blocking the async event loop
+    # 2. Check if a semantically similar briefing was already generated (RAG memory)
+    existing = await find_similar_briefing(query)
+    if existing:
+        title, briefing = existing
+        print(
+            f"Research Agent: Found similar past briefing ('{title}'). Reusing instead of regenerating."
+        )
+        return {
+            "research_output": briefing,
+            "research_sources": [],
+            "research_confidence": 0.8,
+            "messages": [
+                AIMessage(
+                    content=(
+                        f"[Research Agent] A similar briefing on this topic was already generated "
+                        f"('{title}'). Reusing the existing briefing from memory instead of "
+                        f"regenerating from scratch."
+                    ),
+                    name="research",
+                )
+            ],
+        }
+
+    # 3. Run synchronous CrewAI crew in a thread to avoid blocking the async event loop
     result = await asyncio.to_thread(run_research_crew, query)
 
-    # 3. Store briefing in pgvector memory using the existing memory service
+    # 4. Store briefing in pgvector memory using the existing memory service
     await store_in_memory(
         result["briefing"],
         metadata={"sources": result["sources"], "confidence": result["confidence"], "query": query},
         session_id=session_id,
     )
 
-    # 4. Return updated state using the existing state schema + new fields
+    # 5. Return updated state using the existing state schema + new fields
     return {
         "research_output": result["briefing"],
         "research_sources": result["sources"],
