@@ -12,7 +12,8 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from backend.api import approvals, sessions
+from backend.api import approvals, sessions, status
+from backend.middleware.auth import ApiKeyMiddleware
 from backend.services.logger import logger
 from backend.services.worker_service import worker_loop
 
@@ -70,8 +71,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Register API key auth middleware (no-op when OMNIPILOT_API_KEY is unset)
+app.add_middleware(ApiKeyMiddleware)
+
 app.include_router(sessions.router, prefix="/api")
 app.include_router(approvals.router, prefix="/api")
+app.include_router(status.router, prefix="/api")
 
 
 @app.exception_handler(Exception)

@@ -1,6 +1,9 @@
+import os
 import re
 from datetime import datetime, timedelta
 
+import dateparser
+from dateparser.search import search_dates
 from langchain_core.messages import AIMessage, HumanMessage
 
 from backend.services.calendar_service import create_event, get_events
@@ -21,6 +24,12 @@ _WORD_DURATIONS = {
     "quarter of an hour": 15,
     "two hours": 120,
     "three hours": 180,
+}
+
+# Settings for dateparser to interpret relative dates from the user's perspective.
+_DPARSER_SETTINGS = {
+    "PREFER_DATES_FROM": "future",
+    "RETURN_AS_TIMEZONE_AWARE": False,
 }
 
 
@@ -58,17 +67,81 @@ def _extract_duration(prompt: str) -> int:
 
 
 def _extract_title(prompt: str) -> str:
-    """Derives an event title from the user's prompt."""
+    """Derives an event title from the user's prompt.
+
+    Strips scheduling-related keywords from the user's request so the title
+    reflects the *subject* of the meeting rather than the scheduling instruction.
+    """
     lower = prompt.lower()
-    if "restaurant" in lower or "dinner" in lower or "lunch" in lower:
-        return "Dinner reservation details"
-    if "client" in lower or "sync" in lower or "call" in lower:
-        return "Client meeting appointment"
+
+    # Keyword-based heuristic for common meeting types
+    if "restaurant" in lower or "dinner" in lower:
+        return "Dinner Reservation"
+    if "lunch" in lower:
+        return "Lunch Meeting"
     if "standup" in lower or "daily" in lower:
-        return "Daily standup"
+        return "Daily Standup"
+    if "client" in lower or "sync" in lower or "call" in lower:
+        return "Client Call"
     if "review" in lower:
-        return "Review meeting"
+        return "Review Meeting"
+    if "doctor" in lower or "appointment" in lower:
+        return "Appointment"
+
+    # Generic fallback: strip scheduling noise and use the remainder as the title
+    noise_patterns = [
+        r"\b(?:schedule|book|set up|create|add)\b.*?(?:meeting|event|appointment|call|session)\b",
+        r"\b(?:for|on|at|tomorrow|today|next|this|on)\b.*",
+        r"\b(?:please|can you|i need|i want|help me)\b",
+        r"\b\d{1,2}[:\s]?\d{0,2}\s*(?:am|pm)?\b",
+        r"\b(?:min|minutes|hour|hours)\b",
+    ]
+    cleaned = prompt
+    for pattern in noise_patterns:
+        cleaned = re.sub(pattern, "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+
+    # Capitalize and truncate
+    if cleaned and len(cleaned) > 3:
+        return cleaned.title()[:80]
+
     return "Scheduled Event"
+
+
+def _extract_datetime(prompt: str) -> datetime:
+    """Parses a natural-language datetime from the user's prompt.
+
+    Handles phrases like 'tomorrow at 2 PM', 'next Thursday at 3 PM',
+    'Friday morning', 'in 3 hours', 'on Monday at 10:30'.
+    Falls back to tomorrow at 2 PM if no date is detected.
+    """
+    # Two-step approach:
+    # 1. Use search_dates to find date/time phrases within the full sentence.
+    # 2. Re-parse the extracted phrase with dateparser.parse for accuracy
+    #    (search_dates sometimes produces imprecise times for embedded phrases).
+    try:
+        results = search_dates(prompt, settings=_DPARSER_SETTINGS)
+        if results:
+            # Filter out duration-like phrases (e.g. "30 min", "1 hour") that
+            # search_dates misinterprets as relative time offsets.
+            duration_keywords = ("min", "hour", "minute", "hr")
+            date_matches = [
+                (text, dt)
+                for text, dt in results
+                if not any(kw in text.lower() for kw in duration_keywords)
+            ]
+            candidates = date_matches if date_matches else results
+            # Take the last candidate's text and re-parse it precisely
+            best_text, _ = candidates[-1]
+            parsed = dateparser.parse(best_text, settings=_DPARSER_SETTINGS)
+            if parsed is not None:
+                return parsed
+    except Exception:
+        pass
+
+    # Fallback: tomorrow at 2 PM
+    tomorrow = datetime.now() + timedelta(days=1)
+    return tomorrow.replace(hour=14, minute=0, second=0, microsecond=0)
 
 
 async def calendar_read_node(state) -> dict:
@@ -103,15 +176,30 @@ async def calendar_node(state) -> dict:
             prompt = msg.content
             break
 
-    # Parse duration from the prompt (Option B: LLM-driven duration)
-    duration = _extract_duration(prompt)
-    title = _extract_title(prompt)
+    # Also check the supervisor's instructions (last message) for additional context
+    supervisor_instructions = ""
+    if messages:
+        last_msg = messages[-1]
+        if hasattr(last_msg, "name") and last_msg.name == "supervisor":
+            supervisor_instructions = last_msg.content
 
-    # Simple mock time parser for tomorrow at 2 PM
-    tomorrow = datetime.now() + timedelta(days=1)
-    target_time = tomorrow.replace(hour=14, minute=0, second=0, microsecond=0)
+    # Combine user prompt and supervisor instructions for parsing
+    parse_text = (
+        f"{supervisor_instructions} {prompt}".strip() if supervisor_instructions else prompt
+    )
 
-    print(f"Calendar Agent: Parsed duration={duration}min, title='{title}' from prompt.")
+    # Parse duration, title, and datetime from the prompt
+    duration = _extract_duration(parse_text)
+    title = _extract_title(parse_text)
+    target_time = _extract_datetime(parse_text)
+
+    # Use the user's timezone from env (matching Cal.com attendee timezone)
+    attendee_tz = os.getenv("CALCOM_ATTENDEE_TIMEZONE", "UTC")
+
+    print(
+        f"Calendar Agent: Parsed duration={duration}min, title='{title}', "
+        f"start={target_time.strftime('%Y-%m-%d %I:%M %p')} (tz={attendee_tz}) from prompt."
+    )
 
     try:
         event = await create_event(title=title, start_time=target_time, duration_minutes=duration)

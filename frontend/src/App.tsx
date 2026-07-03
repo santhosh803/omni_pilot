@@ -6,10 +6,11 @@ import {
   createSession,
   deleteSession,
   submitRunStream,
-  respondApproval,
+  respondApprovalStream,
   fetchPendingApprovals,
+  fetchSystemStatus,
 } from './api';
-import type { Session, Message, Approval, StreamEvent } from './api';
+import type { Session, Message, Approval, StreamEvent, SystemStatusResponse } from './api';
 import { SessionSidebar } from './components/SessionSidebar';
 import { ChatPanel } from './components/ChatPanel';
 import { BriefingViewer } from './components/BriefingViewer';
@@ -32,6 +33,8 @@ function App() {
   // Live streaming state
   const [activeNode, setActiveNode] = useState<string | null>(null);
   const [streamStatus, setStreamStatus] = useState<string>('');
+  // System degradation status
+  const [systemStatus, setSystemStatus] = useState<SystemStatusResponse | null>(null);
 
   // Load session list on mount
   const loadSessions = useCallback(async (selectDefault = false) => {
@@ -142,6 +145,21 @@ function App() {
     return () => clearInterval(interval);
   }, [activeSessionId, loadSessionDetails, loadApprovals]);
 
+  // Poll system status (every 30 seconds — less frequent than session polling)
+  useEffect(() => {
+    const loadStatus = async () => {
+      try {
+        const status = await fetchSystemStatus();
+        setSystemStatus(status);
+      } catch (err) {
+        console.error('Error loading system status:', err);
+      }
+    };
+    loadStatus();
+    const interval = setInterval(loadStatus, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   // Create new session
   const handleCreateSession = async () => {
     try {
@@ -251,25 +269,91 @@ function App() {
     });
   };
 
-  // Respond to approval gate
+  // Respond to approval gate — uses SSE streaming for live resume progress
   const handleRespondApproval = async (id: number, approve: boolean) => {
+    setIsLoading(true);
+    setActiveNode(null);
+    setStreamStatus(approve ? 'Resuming execution…' : 'Rejecting…');
+
+    // Shared event handler (same logic as handleSendMessage's event handler)
+    const handleEvent = (event: StreamEvent) => {
+      const p = event.payload;
+      switch (event.type) {
+        case 'node_start':
+          setActiveNode(p.node as string);
+          setStreamStatus(`${p.label as string} is running…`);
+          break;
+
+        case 'node_end':
+          setStreamStatus(`${p.label as string} completed`);
+          break;
+
+        case 'routing': {
+          const dest = p.next_label as string;
+          setStreamStatus(`Routing → ${dest}`);
+          break;
+        }
+
+        case 'message': {
+          const msg = p as unknown as Message;
+          setMessages(prev => [...prev, msg]);
+          break;
+        }
+
+        case 'interrupt': {
+          setStreamStatus('Waiting for your approval…');
+          loadApprovals();
+          break;
+        }
+
+        case 'complete':
+          setStreamStatus('Done');
+          break;
+
+        case 'error':
+          setStreamStatus(`Error: ${p.error as string}`);
+          break;
+      }
+    };
+
     try {
-      setIsLoading(true);
-      await respondApproval(id, approve);
-      // Instantly load approvals to remove the card
-      await loadApprovals();
-      await loadSessionDetails();
+      await respondApprovalStream(id, approve, {
+        onEvent: handleEvent,
+        onDone: () => {
+          setIsLoading(false);
+          setActiveNode(null);
+          setStreamStatus('');
+          loadApprovals();
+          loadSessionDetails();
+        },
+        onError: (err) => {
+          setIsLoading(false);
+          setActiveNode(null);
+          setStreamStatus('');
+          alert(`Approval Error: ${err.message}`);
+          loadApprovals();
+          loadSessionDetails();
+        },
+      });
     } catch (err) {
-      alert(`Approval Error: ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
       setIsLoading(false);
+      setActiveNode(null);
+      setStreamStatus('');
+      alert(`Approval Error: ${err instanceof Error ? err.message : String(err)}`);
+      loadApprovals();
+      loadSessionDetails();
     }
   };
 
-  // Compute Server Status
-  const getSystemStatus = (): 'online' | 'busy' | 'error' => {
+  // Compute Server Status (incorporates degradation from /api/status)
+  const getSystemStatus = (): 'online' | 'busy' | 'error' | 'degraded' => {
     if (isLoading) return 'busy';
-    
+
+    if (systemStatus) {
+      if (systemStatus.overall === 'degraded') return 'degraded';
+      if (systemStatus.overall === 'offline') return 'error';
+    }
+
     if (activeSessionId !== null) {
       const activeSession = sessions.find(s => s.id === activeSessionId);
       const runs = activeSession?.runs || [];
@@ -279,7 +363,7 @@ function App() {
         if (latestRun.status === 'failed') return 'error';
       }
     }
-    
+
     return 'online';
   };
 
@@ -316,6 +400,7 @@ function App() {
         onCreateSession={handleCreateSession}
         onDeleteSession={handleDeleteSession}
         systemStatus={getSystemStatus()}
+        systemStatusDetail={systemStatus}
         isOpen={isSidebarOpen}
       />
 

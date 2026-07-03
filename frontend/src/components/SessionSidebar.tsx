@@ -1,6 +1,6 @@
 import React from 'react';
-import { PlusCircle, Database, Server, Trash2, ChevronRight } from 'lucide-react';
-import type { Session } from '../api';
+import { PlusCircle, Database, Server, Trash2, ChevronRight, AlertTriangle } from 'lucide-react';
+import type { Session, SystemStatusResponse } from '../api';
 
 interface SessionSidebarProps {
   sessions: Session[];
@@ -8,7 +8,8 @@ interface SessionSidebarProps {
   onSelectSession: (id: number) => void;
   onCreateSession: () => void;
   onDeleteSession: (id: number) => void;
-  systemStatus: 'online' | 'busy' | 'error';
+  systemStatus: 'online' | 'busy' | 'error' | 'degraded';
+  systemStatusDetail?: SystemStatusResponse | null;
   isOpen: boolean;
 }
 
@@ -19,8 +20,13 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
   onCreateSession,
   onDeleteSession,
   systemStatus,
+  systemStatusDetail,
   isOpen,
 }) => {
+  const degradedServices = systemStatusDetail?.services.filter(
+    s => s.status !== 'ok'
+  ) ?? [];
+
   return (
     <aside className={`sidebar-panel ${isOpen ? 'open' : ''}`}>
       <div className="sidebar-header">
@@ -87,6 +93,21 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
           <span style={{ textTransform: 'capitalize' }}>{systemStatus}</span>
         </div>
       </div>
+
+      {degradedServices.length > 0 && (
+        <div className="degradation-banner">
+          <div className="degradation-header">
+            <AlertTriangle size={14} />
+            <span>Degraded Services</span>
+          </div>
+          {degradedServices.map(s => (
+            <div key={s.service} className="degradation-item">
+              <span className={`status-dot ${s.status === 'offline' ? 'error' : 'busy'}`} />
+              <span className="degradation-label">{s.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </aside>
   );
 };

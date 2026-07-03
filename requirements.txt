@@ -25,3 +25,4 @@ tavily-python>=0.7.26
 httpx>=0.28
 playwright>=1.60
 tiktoken>=0.7
+dateparser>=1.2
