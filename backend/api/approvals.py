@@ -107,12 +107,16 @@ async def respond_to_pending_approval_stream(
     if not action.approve:
         # Rejection — mark as failed and emit a single event
         print(f"Approvals: Session {agent_run.session_id} task execution rejected by user.")
+        rejection_state = getattr(agent_run, "state", {})
+        saved_messages = (
+            rejection_state.get("messages", []) if isinstance(rejection_state, dict) else []
+        )
         await crud.update_agent_run_status(
             db,
-            run_id=agent_run.id,
+            run_id=int(agent_run.id),
             status="failed",
             state={
-                "messages": agent_run.state.get("messages", []) if agent_run.state else [],
+                "messages": saved_messages,
                 "error": "Rejected by human user.",
             },
         )
@@ -120,7 +124,7 @@ async def respond_to_pending_approval_stream(
         async def rejection_stream():
             import json
 
-            yield f"event: complete\ndata: {json.dumps({'status': 'rejected', 'run_id': agent_run.id})}\n\n"
+            yield f"event: complete\ndata: {json.dumps({'status': 'rejected', 'run_id': int(agent_run.id)})}\n\n"
 
         return StreamingResponse(
             rejection_stream(),
@@ -135,8 +139,8 @@ async def respond_to_pending_approval_stream(
 
     return StreamingResponse(
         stream_agent_execution(
-            session_id=agent_run.session_id,
-            run_id=agent_run.id,
+            session_id=int(agent_run.session_id),
+            run_id=int(agent_run.id),
             db=db,
             user_query=None,
         ),
