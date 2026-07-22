@@ -42,6 +42,8 @@ htmlcov/
 .nosenv/
 .pytest_cache/
 .asyncio_cache/
+.ruff_cache/
+.mypy_cache/
 .venv/
 env/
 venv/
