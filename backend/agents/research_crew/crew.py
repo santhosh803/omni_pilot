@@ -112,7 +112,7 @@ def run_research_crew(query: str) -> dict:
         writer_output = (
             write_task.output.raw
             if (hasattr(write_task, "output") and write_task.output)
-            else crew_output.raw
+            else getattr(crew_output, "raw", "")
         )
 
         if hasattr(crew_output, "tasks_output") and crew_output.tasks_output:
@@ -126,7 +126,7 @@ def run_research_crew(query: str) -> dict:
                 writer_output = crew_output.tasks_output[3].raw
 
         # 7. Parse results
-        briefing = writer_output if writer_output else crew_output.raw
+        briefing = writer_output if writer_output else getattr(crew_output, "raw", "")
 
         raw_urls = re.findall(
             r'https?://[^\s()\[\]{}<>\'"]+', f"{crawler_output}\n{analyst_output}\n{writer_output}"

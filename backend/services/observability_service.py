@@ -13,7 +13,7 @@ async def log_audit_event(
     if not user_id:
         try:
             default_user = await crud.get_or_create_default_user(db)
-            user_id = default_user.id
+            user_id = int(default_user.id)
         except Exception:
             user_id = None
 

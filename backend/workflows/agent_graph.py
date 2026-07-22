@@ -64,7 +64,9 @@ def _keyword_fallback_route(messages: Sequence[BaseMessage]) -> dict:
     last_user_msg = ""
     for msg in reversed(messages):
         if isinstance(msg, HumanMessage):
-            last_user_msg = msg.content.lower()
+            last_user_msg = (
+                msg.content if isinstance(msg.content, str) else str(msg.content)
+            ).lower()
             break
 
     if last_agent == "research":
@@ -116,7 +118,7 @@ async def supervisor_node(state: AgentState) -> dict:
     user_query = "Agent execution request"
     for msg in messages:
         if isinstance(msg, HumanMessage):
-            user_query = msg.content
+            user_query = msg.content if isinstance(msg.content, str) else str(msg.content)
             break
 
     # 2. Enrich context with RAG-retrieved user memories and past briefings.
@@ -169,7 +171,9 @@ def route_next(state: AgentState):
         # Check supervisor instructions (last message)
         if messages:
             last_msg = messages[-1]
-            content = last_msg.content.lower()
+            content = (
+                last_msg.content if isinstance(last_msg.content, str) else str(last_msg.content)
+            ).lower()
             if any(
                 kw in content
                 for kw in [
@@ -189,7 +193,7 @@ def route_next(state: AgentState):
         # Check original human message
         for msg in reversed(messages):
             if isinstance(msg, HumanMessage):
-                prompt = msg.content.lower()
+                prompt = (msg.content if isinstance(msg.content, str) else str(msg.content)).lower()
                 if any(
                     kw in prompt
                     for kw in [

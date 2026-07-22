@@ -3,7 +3,7 @@ from typing import Literal
 
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_groq import ChatGroq
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 
 
 class RouteResponse(BaseModel):
@@ -32,7 +32,7 @@ def get_supervisor_chain(model_name: str = "llama-3.3-70b-versatile"):
         raise ValueError("GROQ_API_KEY not configured in .env file.")
 
     print(f"Supervisor: Routing to Groq using model '{model_name}'...")
-    llm = ChatGroq(model=model_name, temperature=0, api_key=api_key)
+    llm = ChatGroq(model=model_name, temperature=0, api_key=SecretStr(api_key))
 
     structured_llm = llm.with_structured_output(RouteResponse)
 
