@@ -173,7 +173,7 @@ async def calendar_node(state) -> dict:
     prompt = ""
     for msg in reversed(messages):
         if isinstance(msg, HumanMessage):
-            prompt = msg.content
+            prompt = msg.content if isinstance(msg.content, str) else str(msg.content)
             break
 
     # Also check the supervisor's instructions (last message) for additional context

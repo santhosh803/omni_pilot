@@ -73,7 +73,7 @@ async def search_relevant_memories(
         .limit(limit)
     )
     result = await db.execute(stmt)
-    return result.scalars().all()
+    return list(result.scalars().all())
 
 
 async def search_relevant_meetings(
@@ -88,4 +88,4 @@ async def search_relevant_meetings(
         .limit(limit)
     )
     result = await db.execute(stmt)
-    return result.scalars().all()
+    return list(result.scalars().all())

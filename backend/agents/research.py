@@ -44,7 +44,7 @@ async def research_node(state) -> dict:
     query = "AI Agent Trends 2026"
     for msg in reversed(messages):
         if isinstance(msg, HumanMessage):
-            query = msg.content
+            query = msg.content if isinstance(msg.content, str) else str(msg.content)
             break
 
     # 2. Check if a semantically similar briefing was already generated (RAG memory)

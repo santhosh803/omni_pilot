@@ -55,24 +55,32 @@ async def respond_to_pending_approval(
             from backend.services.stream_service import execute_or_resume_graph
 
             await execute_or_resume_graph(
-                session_id=agent_run.session_id, run_id=agent_run.id, db=db, user_query=None
+                session_id=int(agent_run.session_id),
+                run_id=int(agent_run.id),
+                db=db,
+                user_query=None,
             )
         except Exception as e:
             await crud.update_agent_run_status(
                 db,
-                run_id=agent_run.id,
+                run_id=int(agent_run.id),
                 status="failed",
                 state={"error": f"Error during resume: {str(e)}"},
             )
             raise HTTPException(status_code=500, detail=f"Failed to resume graph: {str(e)}") from e
     else:
         print(f"Approvals: Session {agent_run.session_id} task execution rejected by user.")
+        # Update run status to failed if rejected
+        current_state = getattr(agent_run, "state", {})
+        saved_messages = (
+            current_state.get("messages", []) if isinstance(current_state, dict) else []
+        )
         await crud.update_agent_run_status(
             db,
-            run_id=agent_run.id,
+            run_id=int(agent_run.id),
             status="failed",
             state={
-                "messages": agent_run.state.get("messages", []) if agent_run.state else [],
+                "messages": saved_messages,
                 "error": "Rejected by human user.",
             },
         )

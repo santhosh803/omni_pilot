@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -38,10 +38,10 @@ async def list_recent_sessions(db: AsyncSession = Depends(get_db)):
 
         runs_by_session: dict[int, list[AgentRun]] = {}
         for run in all_runs:
-            runs_by_session.setdefault(run.session_id, []).append(run)
+            runs_by_session.setdefault(int(run.session_id), []).append(run)
 
         for session in sessions:
-            session.runs = runs_by_session.get(session.id, [])
+            session.runs = runs_by_session.get(int(session.id), [])
 
     return sessions
 
@@ -63,8 +63,6 @@ async def get_session_details(session_id: int, db: AsyncSession = Depends(get_db
 
     return session
 
-
-from fastapi import Response
 
 @router.delete("/{session_id}", status_code=204)
 async def delete_session_endpoint(session_id: int, db: AsyncSession = Depends(get_db)):
@@ -92,7 +90,7 @@ async def trigger_agent_run(
     try:
         # Run graph
         await execute_or_resume_graph(
-            session_id=session_id, run_id=run.id, db=db, user_query=run_data.query
+            session_id=session_id, run_id=int(run.id), db=db, user_query=run_data.query
         )
 
         # Retrieve updated agent run entry from database
@@ -105,7 +103,7 @@ async def trigger_agent_run(
         traceback.print_exc()
         # Mark agent run as failed in database
         await crud.update_agent_run_status(
-            db, run_id=run.id, status="failed", state={"error": str(e)}
+            db, run_id=int(run.id), status="failed", state={"error": str(e)}
         )
         raise HTTPException(status_code=500, detail=f"Agent workflow failed: {str(e)}") from e
 
@@ -134,7 +132,7 @@ async def stream_agent_run(
     return StreamingResponse(
         stream_agent_execution(
             session_id=session_id,
-            run_id=run.id,
+            run_id=int(run.id),
             db=db,
             user_query=run_data.query,
         ),

@@ -1,5 +1,6 @@
+from collections.abc import Sequence
 from datetime import datetime
-from typing import Any, Optional, List, Sequence
+from typing import Any
 
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,10 +22,10 @@ async def get_or_create_default_user(db: AsyncSession) -> User:
 
 
 # --- Session Helpers ---
-async def create_session(db: AsyncSession, user_id: int = None) -> Session:
+async def create_session(db: AsyncSession, user_id: int | None = None) -> Session:
     if not user_id:
         default_user = await get_or_create_default_user(db)
-        user_id = default_user.id  # type: ignore
+        user_id = int(default_user.id)
 
     session = Session(user_id=user_id)
     db.add(session)
@@ -33,7 +34,7 @@ async def create_session(db: AsyncSession, user_id: int = None) -> Session:
     return session
 
 
-async def get_session(db: AsyncSession, session_id: int) -> Optional[Session]:
+async def get_session(db: AsyncSession, session_id: int) -> Session | None:
     result = await db.execute(select(Session).filter(Session.id == session_id))
     return result.scalars().first()
 
@@ -48,8 +49,8 @@ async def create_agent_run(db: AsyncSession, session_id: int, agent_type: str) -
 
 
 async def update_agent_run_status(
-    db: AsyncSession, run_id: int, status: str, state: dict = None
-) -> Optional[AgentRun]:
+    db: AsyncSession, run_id: int, status: str, state: dict | None = None
+) -> AgentRun | None:
     update_data: dict[str, Any] = {"status": status}
     if status in ["completed", "failed"]:
         update_data["completed_at"] = datetime.now()
@@ -72,7 +73,7 @@ async def create_task(db: AsyncSession, session_id: int, description: str) -> Ta
     return task
 
 
-async def update_task_status(db: AsyncSession, task_id: int, status: str) -> Optional[Task]:
+async def update_task_status(db: AsyncSession, task_id: int, status: str) -> Task | None:
     await db.execute(update(Task).where(Task.id == task_id).values(status=status))
     await db.commit()
     result = await db.execute(select(Task).filter(Task.id == task_id))
@@ -95,7 +96,7 @@ async def create_approval(
     return approval
 
 
-async def respond_to_approval(db: AsyncSession, approval_id: int, approve: bool) -> Optional[Approval]:
+async def respond_to_approval(db: AsyncSession, approval_id: int, approve: bool) -> Approval | None:
     status = "approved" if approve else "rejected"
     await db.execute(update(Approval).where(Approval.id == approval_id).values(status=status))
     await db.commit()
