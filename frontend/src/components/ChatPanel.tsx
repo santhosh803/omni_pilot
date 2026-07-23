@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
 import {
   Bot,
   User,
@@ -48,11 +49,22 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 }) => {
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const isUserScrolledUpRef = useRef<boolean>(false);
 
-  // Auto-scroll to bottom of messages
+  const handleScroll = () => {
+    if (!scrollContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+    // Consider user scrolled up if they are more than 80px from the bottom
+    isUserScrolledUpRef.current = scrollHeight - scrollTop - clientHeight > 80;
+  };
+
+  // Auto-scroll to bottom of messages unless user has manually scrolled up
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (!isUserScrolledUpRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages, pendingApprovals, isLoading, streamStatus]);
 
   // Adjust textarea height automatically
@@ -65,6 +77,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
   const handleSend = () => {
     if (!inputValue.trim() || isLoading || activeSessionId === null) return;
+    isUserScrolledUpRef.current = false;
     onSendMessage(inputValue.trim());
     setInputValue('');
   };
@@ -156,7 +169,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         )}
       </div>
 
-      <div className="chat-messages-scroll">
+      <div className="chat-messages-scroll" ref={scrollContainerRef} onScroll={handleScroll}>
         {activeSessionId === null ? (
           <div className="empty-state">
             <Bot size={48} />
@@ -170,7 +183,18 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         ) : (
           messages.map((msg, index) => {
             const isHuman = msg.role === 'human';
-            const isSupervisor = msg.name?.toLowerCase() === 'supervisor';
+            const msgName = (msg.name || '').toLowerCase();
+            const isSupervisor = msgName === 'supervisor';
+            const isBrowser = msgName === 'browser';
+
+            // Differentiate intermediate routing notes from final synthesized answers
+            const isRoutingNote =
+              isSupervisor &&
+              (msg.content.startsWith('[Fallback] Routing') ||
+                msg.content.includes('Routing to ') ||
+                msg.content.toLowerCase().includes('routing to browser') ||
+                msg.content.toLowerCase().includes('routing to calendar') ||
+                msg.content.toLowerCase().includes('routing to research'));
 
             return (
               <div
@@ -179,17 +203,38 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               >
                 {renderMessageHeader(msg)}
 
-                {isSupervisor ? (
-                  <details className="routing-logs-container" open>
+                {isHuman ? (
+                  <div style={{ whiteSpace: 'pre-wrap', marginTop: '0.25rem' }}>
+                    {msg.content}
+                  </div>
+                ) : isRoutingNote ? (
+                  <details className="routing-logs-container">
                     <summary className="routing-logs-toggle">
                       <ChevronDown size={14} />
-                      <span>Supervisor Routing Details</span>
+                      <span>Supervisor Routing Action</span>
                     </summary>
                     <div className="routing-logs-content">{msg.content}</div>
                   </details>
+                ) : isBrowser ? (
+                  <div>
+                    <div className="briefing-markdown" style={{ marginTop: '0.25rem' }}>
+                      <ReactMarkdown>{msg.content.split('Results:\n')[0] || msg.content}</ReactMarkdown>
+                    </div>
+                    {msg.content.includes('Results:\n') && (
+                      <details className="routing-logs-container" style={{ marginTop: '0.5rem' }}>
+                        <summary className="routing-logs-toggle">
+                          <ChevronDown size={14} />
+                          <span>View Raw Web Search Results</span>
+                        </summary>
+                        <div className="routing-logs-content" style={{ maxHeight: '250px', overflowY: 'auto' }}>
+                          {msg.content.split('Results:\n')[1]}
+                        </div>
+                      </details>
+                    )}
+                  </div>
                 ) : (
-                  <div style={{ whiteSpace: 'pre-wrap', marginTop: '0.25rem' }}>
-                    {msg.content}
+                  <div className="briefing-markdown" style={{ marginTop: '0.25rem' }}>
+                    <ReactMarkdown>{msg.content}</ReactMarkdown>
                   </div>
                 )}
               </div>
