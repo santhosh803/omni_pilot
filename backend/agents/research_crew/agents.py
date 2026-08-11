@@ -1,20 +1,22 @@
 import os
+from pathlib import Path
 
-from crewai import Agent
-from langchain_openai import ChatOpenAI
+from crewai import LLM, Agent
 
 from backend.agents.research_crew.tools import fetch_page_content, tavily_search
 
 
 def get_llm():
-    api_key = os.getenv("GROQ_API_KEY")
-    if not api_key or api_key == "your_groq_api_key_here":
-        raise ValueError("GROQ_API_KEY is not configured in the .env file.")
-    return ChatOpenAI(
-        model="llama-3.3-70b-versatile",
+    creds = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
+    if not creds or not Path(creds).exists():
+        raise ValueError(
+            "GOOGLE_APPLICATION_CREDENTIALS is not configured or points to a missing file."
+        )
+    return LLM(
+        model="vertex_ai/gemini-2.5-pro",
         temperature=0.1,
-        openai_api_key=api_key,
-        openai_api_base="https://api.groq.com/openai/v1",
+        vertex_project=os.getenv("GOOGLE_CLOUD_PROJECT"),
+        vertex_location=os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1"),
     )
 
 

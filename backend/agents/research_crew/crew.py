@@ -1,6 +1,7 @@
 import json
 import os
 import re
+from pathlib import Path
 
 from crewai import Crew, Process
 
@@ -52,26 +53,22 @@ def get_mock_results(query: str) -> dict:
 def run_research_crew(query: str) -> dict:
     print(f"--- STARTING CREWAI RESEARCH SUB-CREW FOR QUERY: '{query}' ---")
 
-    # Check if keys are missing or placeholders
-    api_key = os.getenv("GROQ_API_KEY", "")
+    # Check if credentials are missing
+    google_creds = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
     tavily_key = os.getenv("TAVILY_API_KEY", "")
 
-    has_groq = api_key and api_key != "your_groq_api_key_here"
+    has_google_creds = bool(google_creds) and Path(google_creds).exists()
     has_tavily = tavily_key and tavily_key != "your_tavily_api_key_here"
 
-    if not has_groq or not has_tavily:
+    if not has_google_creds or not has_tavily:
         print(
-            "WARNING: GROQ_API_KEY is not configured (or TAVILY_API_KEY is missing). Returning mock research results for testing."
+            "WARNING: GOOGLE_APPLICATION_CREDENTIALS is not configured (or TAVILY_API_KEY is missing). "
+            "Returning mock research results for testing."
         )
         return get_mock_results(query)
 
     try:
-        # Ensure all OpenAI-based client wrappers inside CrewAI redirect their calls correctly
-        os.environ["OPENAI_API_KEY"] = api_key
-        os.environ["OPENAI_API_BASE"] = "https://api.groq.com/openai/v1"
-        os.environ["OPENAI_BASE_URL"] = "https://api.groq.com/openai/v1"
-
-        # 1. Initialize LLM
+        # 1. Initialize LLM (Gemini via Vertex AI)
         llm = get_llm()
 
         # 2. Instantiate all 4 agents

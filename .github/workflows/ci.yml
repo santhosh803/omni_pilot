@@ -49,7 +49,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: postgresql+asyncpg://omnipilot:omnipilot_pass@localhost:5433/omnipilot_db
-      GROQ_API_KEY: dummy
+      GOOGLE_APPLICATION_CREDENTIALS: /tmp/fake-gcp.json
+      GOOGLE_CLOUD_PROJECT: ci-dummy
+      GOOGLE_CLOUD_LOCATION: us-central1
       TAVILY_API_KEY: dummy
     steps:
       - uses: actions/checkout@v4
@@ -66,6 +68,9 @@ jobs:
 
       - name: Install dependencies
         run: uv pip install --system -r requirements.txt pytest pytest-asyncio
+
+      - name: Stub Google credentials file
+        run: echo '{}' > /tmp/fake-gcp.json
 
       - name: Run unit tests
         run: pytest tests -m unit -v

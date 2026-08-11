@@ -1,5 +1,6 @@
 import os
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Annotated, TypedDict
 
 from dotenv import load_dotenv
@@ -44,16 +45,14 @@ class AgentState(TypedDict):
 
 
 def _llm_keys_configured() -> bool:
-    """Returns True when at least one LLM provider API key is set (non-placeholder)."""
-    groq = os.getenv("GROQ_API_KEY", "")
-    if groq and groq != "your_groq_api_key_here":
-        return True
-    return False
+    """Returns True when Google Cloud service-account credentials are configured for Vertex AI."""
+    creds = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
+    return bool(creds) and Path(creds).exists()
 
 
 def _keyword_fallback_route(messages: Sequence[BaseMessage]) -> dict:
     """Pure keyword routing used only when no LLM API key is configured."""
-    print("Supervisor: No LLM API keys configured — using keyword routing fallback.")
+    print("Supervisor: No Google Cloud credentials configured — using keyword routing fallback.")
 
     last_agent = None
     if messages:

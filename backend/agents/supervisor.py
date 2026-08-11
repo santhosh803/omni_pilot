@@ -1,9 +1,10 @@
 import os
+from pathlib import Path
 from typing import Literal
 
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_groq import ChatGroq
-from pydantic import BaseModel, Field, SecretStr
+from langchain_google_vertexai import ChatVertexAI
+from pydantic import BaseModel, Field
 
 
 class RouteResponse(BaseModel):
@@ -15,24 +16,22 @@ class RouteResponse(BaseModel):
     )
 
 
-GROQ_MODELS = {
-    "llama-3.3-70b-versatile",
-    "llama-3.1-8b-instant",
-    "qwen-2.5-32b",
-    "mixtral-8x7b-32768",
-    "gemma2-9b-it",
-    "deepseek-r1-distill-llama-70b",
-}
+def get_supervisor_chain(model_name: str = "gemini-2.5-pro"):
+    """Creates the supervisor routing chain, configured with a dynamic Gemini model chosen by the AI Router."""
+    creds = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
+    if not creds or not Path(creds).exists():
+        raise ValueError(
+            "GOOGLE_APPLICATION_CREDENTIALS is not configured or points to a missing file."
+        )
 
-
-def get_supervisor_chain(model_name: str = "llama-3.3-70b-versatile"):
-    """Creates the supervisor routing chain, configured with a dynamic model chosen by the AI Router."""
-    api_key = os.getenv("GROQ_API_KEY")
-    if not api_key or api_key == "your_groq_api_key_here":
-        raise ValueError("GROQ_API_KEY not configured in .env file.")
-
-    print(f"Supervisor: Routing to Groq using model '{model_name}'...")
-    llm = ChatGroq(model=model_name, temperature=0, api_key=SecretStr(api_key))
+    print(f"Supervisor: Routing to Gemini using model '{model_name}' (Vertex AI)...")
+    llm = ChatVertexAI(
+        model_name=model_name,
+        temperature=0,
+        max_output_tokens=2048,
+        project=os.getenv("GOOGLE_CLOUD_PROJECT"),
+        location=os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1"),
+    )
 
     structured_llm = llm.with_structured_output(RouteResponse)
 

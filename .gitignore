@@ -91,6 +91,8 @@ desktop.ini
 *.p12
 credentials*.json
 client_secret*.json
+gcp-key.json
+gcp-*.json
 
 # Node dependencies (root level safeguard)
 node_modules/

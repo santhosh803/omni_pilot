@@ -23,21 +23,18 @@ def test_ai_router_eval():
     print("Evaluating AI Router decision logic...")
 
     # Simple classification cases
-    assert select_model_for_task("Schedule a meeting for tomorrow.") == "llama-3.1-8b-instant"
-    assert select_model_for_task("Summarize my notes.") == "llama-3.1-8b-instant"
+    assert select_model_for_task("Schedule a meeting for tomorrow.") == "gemini-2.5-flash-lite"
+    assert select_model_for_task("Summarize my notes.") == "gemini-2.5-flash-lite"
 
     # Web/Browser classification cases
-    assert select_model_for_task("Search for the nearest restaurant.") == "qwen-2.5-32b"
-    assert select_model_for_task("Browse the website and extract details.") == "qwen-2.5-32b"
+    assert select_model_for_task("Search for the nearest restaurant.") == "gemini-2.5-flash"
+    assert select_model_for_task("Browse the website and extract details.") == "gemini-2.5-flash"
 
     # Complex planning / research classification cases
-    assert (
-        select_model_for_task("Prepare a deep market briefing on AI trends.")
-        == "llama-3.3-70b-versatile"
-    )
+    assert select_model_for_task("Prepare a deep market briefing on AI trends.") == "gemini-2.5-pro"
     assert (
         select_model_for_task("Coordinate browser search, then add it to calendar.")
-        == "llama-3.3-70b-versatile"
+        == "gemini-2.5-pro"
     )
 
 

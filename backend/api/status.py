@@ -9,6 +9,7 @@ The frontend uses this to display degradation indicators (Item 9).
 """
 
 import os
+from pathlib import Path
 
 import httpx
 from fastapi import APIRouter
@@ -19,15 +20,18 @@ router = APIRouter(prefix="/status", tags=["Status"])
 
 
 def _check_llm() -> dict:
-    """Checks whether at least one LLM provider API key is configured."""
-    groq = os.getenv("GROQ_API_KEY", "")
-    if groq and groq != "your_groq_api_key_here":
-        return {"service": "llm", "label": "LLM (Groq)", "status": "ok"}
+    """Checks whether Google Cloud service-account credentials are configured for Vertex AI."""
+    creds = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
+    if creds and Path(creds).exists():
+        return {"service": "llm", "label": "LLM (Gemini)", "status": "ok"}
     return {
         "service": "llm",
-        "label": "LLM (Groq)",
+        "label": "LLM (Gemini)",
         "status": "offline",
-        "detail": "No LLM API key set — supervisor uses keyword routing fallback.",
+        "detail": (
+            "GOOGLE_APPLICATION_CREDENTIALS not set or file missing — "
+            "supervisor uses keyword routing fallback."
+        ),
     }
 
 
