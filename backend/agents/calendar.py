@@ -165,6 +165,12 @@ async def calendar_read_node(state) -> dict:
     return {"messages": [AIMessage(content=content, name="calendar")]}
 
 
+# Cal.com's default booking "notes" field is a plain textarea with no documented
+# hard cap, but a generous truncation keeps payloads well-behaved and the note
+# skimmable rather than dumping an entire multi-section markdown briefing.
+_NOTES_MAX_CHARS = 1500
+
+
 async def calendar_node(state) -> dict:
     print("--- RUNNING CALENDAR AGENT ---")
     messages = state.get("messages", [])
@@ -201,8 +207,20 @@ async def calendar_node(state) -> dict:
         f"start={target_time.strftime('%Y-%m-%d %I:%M %p')} (tz={attendee_tz}) from prompt."
     )
 
+    # Smart Meeting Prep handshake: if the research agent already ran earlier in
+    # this same graph run and produced a briefing, attach a summary of it to the
+    # booking notes so it shows up on the invite.
+    research_output = state.get("research_output") or ""
+    notes = None
+    if research_output:
+        notes = research_output[:_NOTES_MAX_CHARS]
+        if len(research_output) > _NOTES_MAX_CHARS:
+            notes += "\n\n[...briefing truncated — full version available in OmniPilot]"
+
     try:
-        event = await create_event(title=title, start_time=target_time, duration_minutes=duration)
+        event = await create_event(
+            title=title, start_time=target_time, duration_minutes=duration, notes=notes
+        )
         event_type_label = event.get("event_type", f"{event['duration']}min")
         content = (
             f"[Calendar Agent] Successfully scheduled event:\n"
@@ -211,6 +229,10 @@ async def calendar_node(state) -> dict:
             f"  - End: {event['end_time'].strftime('%Y-%m-%d %I:%M %p')}\n"
             f"  - Duration: {event['duration']} minutes (event type: {event_type_label})"
         )
+        if notes:
+            content += (
+                "\n  - Attached the research briefing from this session to the booking notes."
+            )
     except Exception as e:
         content = f"[Calendar Agent] Failed to schedule event: {str(e)}"
 

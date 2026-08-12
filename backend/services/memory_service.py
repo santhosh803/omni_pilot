@@ -89,3 +89,23 @@ async def search_relevant_meetings(
     )
     result = await db.execute(stmt)
     return list(result.scalars().all())
+
+
+async def search_relevant_meetings_with_distance(
+    db: AsyncSession, query_text: str, limit: int = 3
+) -> list[tuple[MeetingHistory, float]]:
+    """Like search_relevant_meetings, but also returns each result's cosine distance.
+
+    Cosine distance ranges 0 (identical) to 2 (opposite); callers can use this to
+    reject matches that are merely the *least dissimilar* row rather than an
+    actually relevant one (pgvector's ORDER BY ... LIMIT always returns rows even
+    when nothing in the table is semantically close to the query).
+    """
+    query_vector = await generate_embedding(query_text)
+    distance_col = MeetingHistory.embedding.cosine_distance(query_vector)
+
+    stmt = (
+        select(MeetingHistory, distance_col.label("distance")).order_by(distance_col).limit(limit)
+    )
+    result = await db.execute(stmt)
+    return [(row[0], float(row[1])) for row in result.all()]

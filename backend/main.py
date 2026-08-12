@@ -8,16 +8,30 @@ if sys.platform == "win32":
 
 from contextlib import asynccontextmanager
 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from backend.api import approvals, sessions, status
 from backend.middleware.auth import ApiKeyMiddleware
+from backend.services.daily_briefing_service import run_daily_briefing_job
 from backend.services.logger import logger
 from backend.services.worker_service import worker_loop
 
 load_dotenv()
+
+# Proactive daily briefing schedule — hour/minute in the configured timezone
+# (defaults to the user's Cal.com attendee timezone, since that's the only
+# timezone already known to the app).
+_BRIEFING_HOUR = int(os.getenv("DAILY_BRIEFING_HOUR", "7"))
+_BRIEFING_MINUTE = int(os.getenv("DAILY_BRIEFING_MINUTE", "0"))
+_BRIEFING_TIMEZONE = os.getenv("DAILY_BRIEFING_TIMEZONE") or os.getenv(
+    "CALCOM_ATTENDEE_TIMEZONE", "UTC"
+)
+
+scheduler = AsyncIOScheduler(timezone=_BRIEFING_TIMEZONE)
 
 
 @asynccontextmanager
@@ -52,7 +66,25 @@ async def lifespan(app: FastAPI):
             "Cal.com startup slug resolution failed: %s (will retry on first booking)", e
         )
 
+    # Schedule the proactive daily briefing job
+    scheduler.add_job(
+        run_daily_briefing_job,
+        trigger=CronTrigger(hour=_BRIEFING_HOUR, minute=_BRIEFING_MINUTE),
+        id="daily_briefing",
+        replace_existing=True,
+    )
+    scheduler.start()
+    logger.info(
+        "Daily Briefing: scheduled for %02d:%02d %s",
+        _BRIEFING_HOUR,
+        _BRIEFING_MINUTE,
+        _BRIEFING_TIMEZONE,
+    )
+
     yield
+
+    # Stop the scheduler on shutdown
+    scheduler.shutdown(wait=False)
 
     # Cancel worker task on shutdown
     logger.info("Stopping background worker task...")

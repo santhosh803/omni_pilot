@@ -123,6 +123,23 @@ def test_e2e_hitl_checkpoints():
 def test_research_crew_quality():
     print("Evaluating Research Crew Quality...")
 
+    # Clear cached briefings first: this test asserts on a *fresh* crew run's
+    # output shape (sources, confidence), but the RAG memory layer will
+    # legitimately short-circuit to a cached briefing (with no sources
+    # recorded) if a semantically similar one already exists from a prior run
+    # against this shared dev database.
+    from sqlalchemy import delete
+
+    from backend.database.config import AsyncSessionLocal
+    from backend.database.models import MeetingHistory
+
+    async def clear_meeting_history():
+        async with AsyncSessionLocal() as db:
+            await db.execute(delete(MeetingHistory))
+            await db.commit()
+
+    asyncio.run(clear_meeting_history())
+
     with TestClient(app) as client:
         # Create a session
         response = client.post("/api/sessions/", json={})
@@ -142,7 +159,6 @@ def test_research_crew_quality():
         # Query the database to get the updated agent run
         from sqlalchemy.future import select
 
-        from backend.database.config import AsyncSessionLocal
         from backend.database.models import AgentRun
 
         async def get_updated_run():

@@ -30,6 +30,7 @@ dependencies = [
     "playwright>=1.60",
     "tiktoken>=0.7",
     "dateparser>=1.2",
+    "apscheduler>=3.10",
 ]
 
 [project.optional-dependencies]

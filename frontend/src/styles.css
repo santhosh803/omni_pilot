@@ -6,6 +6,7 @@
   --border-active:  rgba(139, 92, 246, 0.5);  /* violet active */
   --accent-indigo:  #6366F1;
   --accent-violet:  #8B5CF6;
+  --accent-sky:     #0EA5E9;
   --accent-glow:    rgba(139, 92, 246, 0.25);
   --text-primary:   #E2E8F0;
   --text-secondary: #94A3B8;
@@ -50,6 +51,7 @@
   --border-active:  rgba(139, 92, 246, 0.4);
   --accent-indigo:  #4F46E5;   /* accessible darker indigo */
   --accent-violet:  #7C3AED;   /* accessible darker violet */
+  --accent-sky:     #0284C7;   /* accessible darker sky blue */
   --accent-glow:    rgba(99, 102, 241, 0.1);
   --text-primary:   #0F172A;   /* slate-900 */
   --text-secondary: #475569;   /* slate-600 */
@@ -456,6 +458,7 @@ body::before {
 .agent-badge.browser { background: rgba(16, 185, 129, 0.15); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.25); }
 .agent-badge.calendar { background: rgba(245, 158, 11, 0.15); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.25); }
 .agent-badge.research { background: rgba(99, 102, 241, 0.15); color: var(--accent-indigo); border: 1px solid rgba(99, 102, 241, 0.25); }
+.agent-badge.daily-briefing { background: rgba(14, 165, 233, 0.15); color: var(--accent-sky); border: 1px solid rgba(14, 165, 233, 0.25); }
 
 /* Routing logs detail element */
 .routing-logs-container {

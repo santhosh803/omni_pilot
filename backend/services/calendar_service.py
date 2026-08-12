@@ -9,8 +9,14 @@ CALCOM_API_BASE = os.getenv("CALCOM_API_BASE", "https://api.cal.com/v2")
 CALCOM_EVENT_SLUGS = [
     s.strip() for s in os.getenv("CALCOM_EVENT_SLUGS", "15min,30min").split(",") if s.strip()
 ]
-CALCOM_API_VERSION = os.getenv("CALCOM_API_VERSION", "2024-08-13")
 CALCOM_ATTENDEE_TIMEZONE = os.getenv("CALCOM_ATTENDEE_TIMEZONE", "Asia/Kolkata")
+
+# Cal.com v2 versions each endpoint independently via the cal-api-version header —
+# there is no single global version. These are the versions each endpoint below
+# was implemented and verified against (see https://cal.com/docs/api-reference/v2).
+_EVENT_TYPES_API_VERSION = "2024-06-14"
+_CREATE_BOOKING_API_VERSION = "2026-02-25"
+_LIST_BOOKINGS_API_VERSION = "2026-05-01"
 
 # In-memory mock storage used only when Cal.com is not configured.
 MOCK_CALENDAR_EVENTS: list[dict] = []
@@ -24,10 +30,10 @@ def _is_calcom_configured() -> bool:
     return bool(CALCOM_API_KEY and CALCOM_API_KEY != "your_calcom_api_key_here")
 
 
-def _calcom_headers() -> dict[str, str]:
+def _calcom_headers(api_version: str) -> dict[str, str]:
     return {
         "Authorization": f"Bearer {CALCOM_API_KEY}",
-        "cal-api-version": CALCOM_API_VERSION,
+        "cal-api-version": api_version,
         "Content-Type": "application/json",
     }
 
@@ -55,7 +61,7 @@ async def resolve_all_event_types() -> list[dict]:
     async with httpx.AsyncClient() as client:
         resp = await client.get(
             f"{CALCOM_API_BASE}/event-types",
-            headers=_calcom_headers(),
+            headers=_calcom_headers(_EVENT_TYPES_API_VERSION),
             timeout=15.0,
         )
         resp.raise_for_status()
@@ -72,16 +78,17 @@ async def resolve_all_event_types() -> list[dict]:
                 matched = et
                 break
         if matched:
+            # Cal.com v2 returns the duration as "lengthInMinutes"; "length" is
+            # not a field on this endpoint's response and always defaulted to 60.
+            length = int(matched.get("lengthInMinutes") or matched.get("length") or 60)
             resolved.append(
                 {
                     "id": int(matched["id"]),
                     "slug": slug,
-                    "length": int(matched.get("length", 60)),
+                    "length": length,
                 }
             )
-            print(
-                f"  Resolved '{slug}' -> ID={matched['id']}, length={matched.get('length', 60)}min"
-            )
+            print(f"  Resolved '{slug}' -> ID={matched['id']}, length={length}min")
         else:
             print(f"  WARNING: Event type with slug '{slug}' not found in Cal.com account.")
 
@@ -142,10 +149,14 @@ async def check_availability(start_time: datetime, end_time: datetime) -> bool:
     return True
 
 
-async def create_event(title: str, start_time: datetime, duration_minutes: int = 30) -> dict:
+async def create_event(
+    title: str, start_time: datetime, duration_minutes: int = 30, notes: str | None = None
+) -> dict:
     """Creates a calendar event via Cal.com (or the mock store as fallback).
 
     Picks the Cal.com event type whose duration best matches duration_minutes.
+    When `notes` is provided (e.g. a research briefing summary), it's attached
+    via the booking's default "notes" field so it's visible on the invite.
     """
     if _is_calcom_configured():
         # Ensure event types are resolved
@@ -162,24 +173,27 @@ async def create_event(title: str, start_time: datetime, duration_minutes: int =
 
         end_time = start_time + timedelta(minutes=actual_duration)
 
+        # "end" is not an accepted field — Cal.com derives it from the event
+        # type's duration server-side.
         payload = {
             "eventTypeId": event_type["id"],
             "start": start_time.astimezone(timezone.utc).isoformat(),
-            "end": end_time.astimezone(timezone.utc).isoformat(),
             "attendee": {
                 "name": "OmniPilot",
                 "email": os.getenv("CALCOM_ATTENDEE_EMAIL", "assistant@omnipilot.ai"),
                 "timeZone": CALCOM_ATTENDEE_TIMEZONE,
+                "language": "en",
             },
-            "language": "en",
             "metadata": {"title": title},
         }
+        if notes:
+            payload["bookingFieldsResponses"] = {"notes": notes}
 
         async with httpx.AsyncClient() as client:
             resp = await client.post(
                 f"{CALCOM_API_BASE}/bookings",
                 json=payload,
-                headers=_calcom_headers(),
+                headers=_calcom_headers(_CREATE_BOOKING_API_VERSION),
                 timeout=15.0,
             )
             resp.raise_for_status()
@@ -209,6 +223,7 @@ async def create_event(title: str, start_time: datetime, duration_minutes: int =
         "end_time": end_time,
         "duration": duration_minutes,
         "status": "confirmed",
+        "notes": notes,
     }
     MOCK_CALENDAR_EVENTS.append(event)
     return event
@@ -221,7 +236,7 @@ async def get_events() -> list:
             resp = await client.get(
                 f"{CALCOM_API_BASE}/bookings",
                 params={"status": "upcoming"},
-                headers=_calcom_headers(),
+                headers=_calcom_headers(_LIST_BOOKINGS_API_VERSION),
                 timeout=15.0,
             )
             resp.raise_for_status()

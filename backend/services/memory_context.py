@@ -10,7 +10,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database.config import AsyncSessionLocal
 from backend.database.models import Session
-from backend.services.memory_service import search_relevant_meetings, search_relevant_memories
+from backend.services.memory_service import (
+    search_relevant_meetings,
+    search_relevant_meetings_with_distance,
+    search_relevant_memories,
+)
+
+# Cosine-distance cutoff below which a past briefing is considered "the same topic"
+# and safe to reuse instead of re-running the research crew. nomic-embed-text
+# embeddings for genuinely related short texts typically land well under this;
+# unrelated topics land well above it. Tune here if reuse feels too eager/stingy.
+BRIEFING_REUSE_DISTANCE_THRESHOLD = 0.25
 
 
 async def _get_user_id_for_session(db: AsyncSession, session_id: int) -> int:
@@ -74,19 +84,25 @@ async def find_similar_briefing(query: str) -> tuple[str, str] | None:
 
     Returns (title, briefing) if a strong match is found, otherwise None.
     Used by the research node to skip regeneration when a similar briefing
-    was already produced.
+    was already produced. pgvector's ORDER BY ... LIMIT 1 always returns the
+    *closest* row even when nothing in the table is actually related to the
+    query, so a distance threshold is required to avoid reusing an unrelated
+    briefing just because it happened to be the least-dissimilar one on file.
     """
     try:
         async with AsyncSessionLocal() as db:
-            meetings = await search_relevant_meetings(db, query_text=query, limit=1)
+            results = await search_relevant_meetings_with_distance(db, query_text=query, limit=1)
     except Exception as e:
         print(f"Memory Context: Failed to search for similar briefing: {e}")
         return None
 
-    if not meetings:
+    if not results:
         return None
 
-    meeting = meetings[0]
+    meeting, distance = results[0]
+    if distance > BRIEFING_REUSE_DISTANCE_THRESHOLD:
+        return None
+
     briefing = str(meeting.briefing or "")
     if not briefing or len(briefing) < 100:
         return None

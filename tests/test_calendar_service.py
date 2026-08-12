@@ -2,12 +2,23 @@ from datetime import datetime, timedelta
 
 import pytest
 
+import backend.services.calendar_service as calendar_service
 from backend.services.calendar_service import (
     MOCK_CALENDAR_EVENTS,
     check_availability,
     create_event,
     get_events,
 )
+
+
+@pytest.fixture(autouse=True)
+def _force_mock_calendar_mode(monkeypatch):
+    """Forces the mock-store fallback regardless of whether real Cal.com
+    credentials happen to be configured in the environment (e.g. via .env) —
+    these tests exercise the pure in-memory mock path and must not depend on,
+    or accidentally hit, the live Cal.com API.
+    """
+    monkeypatch.setattr(calendar_service, "CALCOM_API_KEY", "")
 
 
 @pytest.mark.unit

@@ -12,6 +12,7 @@ import {
   Loader,
   ArrowRight,
   CheckCircle2,
+  Sunrise,
 } from 'lucide-react';
 import type { Message, Approval } from '../api';
 
@@ -35,6 +36,7 @@ const NODE_CONFIG: Record<string, { label: string; icon: React.ElementType; colo
   calendar:      { label: 'Calendar Agent',  icon: Calendar, color: 'var(--warning)',         badgeClass: 'calendar'   },
   calendar_read: { label: 'Calendar Agent',  icon: Calendar, color: 'var(--warning)',         badgeClass: 'calendar'   },
   research:      { label: 'Research Agent',  icon: BookOpen, color: 'var(--accent-indigo)',   badgeClass: 'research'   },
+  daily_briefing:{ label: 'Daily Briefing',  icon: Sunrise,  color: 'var(--accent-sky)',      badgeClass: 'daily-briefing' },
 };
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
@@ -107,6 +109,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     if (lowerName.includes('browser'))  nodeKey = 'browser';
     else if (lowerName.includes('calendar')) nodeKey = 'calendar';
     else if (lowerName.includes('research')) nodeKey = 'research';
+    else if (lowerName.includes('daily_briefing')) nodeKey = 'daily_briefing';
 
     const cfg = NODE_CONFIG[nodeKey] ?? NODE_CONFIG.supervisor;
     const Icon = cfg.icon;
